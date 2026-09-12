@@ -11,7 +11,8 @@ import {
     getNearbyInspections,
     getMyInspections,
     getInspectionsByVendor,
-    batchUploadScans
+    batchUploadScans,
+    uploadMultiPanelScan
 } from "../controllers/inspection.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { verifyRoles } from "../middlewares/rbac.middleware.js";
@@ -46,6 +47,12 @@ router.route("/upload-scan").post(
     verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
     upload.single("image"),
     uploadInspectionScan
+);
+
+router.route("/upload-multi-panel").post(
+    verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
+    upload.array("images", 5),
+    uploadMultiPanelScan
 );
 
 // I7: Batch upload — accepts up to 10 images in one request

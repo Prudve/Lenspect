@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Inspection } from "../models/inspection.model.js";
 import { uploadOnCloudinary, deleteFileOnCloudinary } from "../utils/cloudinary.js";
 import { addInspectionJob, inspectionQueue } from "../queues/inspection.queue.js";
+import { analyzeMultipleImagesWithFastAPI } from "../services/aiMicroservice.service.js";
 
 const uploadInspectionScan = asyncHandler(async (req, res) => {
     const { latitude, longitude } = req.body;
@@ -372,6 +373,118 @@ const batchUploadScans = asyncHandler(async (req, res) => {
     );
 });
 
+const uploadMultiPanelScan = asyncHandler(async (req, res) => {
+    const { latitude, longitude, panelLabels } = req.body;
+
+    if (!latitude || !longitude) {
+        throw new ApiError(400, "Latitude and longitude coordinates are required");
+    }
+
+    if (!req.files || req.files.length === 0) {
+        throw new ApiError(400, "At least one image file is required");
+    }
+
+    if (req.files.length > 5) {
+        throw new ApiError(400, "A maximum of 5 panel images per product scan are allowed");
+    }
+
+    // Parse optional panel label hints (["front", "back", "side"])
+    let labels = [];
+    if (panelLabels) {
+        try {
+            labels = JSON.parse(panelLabels);
+        } catch {
+            labels = [];
+        }
+    }
+
+    // ── Step 1: Upload all images to Cloudinary ──────────────────────────────
+    const uploadedPanels = [];
+    const uploadErrors = [];
+
+    for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        try {
+            const cloudinaryResponse = await uploadOnCloudinary(file.path);
+            if (!cloudinaryResponse) {
+                uploadErrors.push({ file: file.originalname, reason: "Cloudinary upload failed" });
+                continue;
+            }
+            uploadedPanels.push({
+                imageUrl: cloudinaryResponse.secure_url,
+                cloudinaryPublicId: cloudinaryResponse.public_id,
+                panelLabel: labels[i] || null
+            });
+        } catch (err) {
+            uploadErrors.push({ file: file.originalname, reason: err.message });
+        }
+    }
+
+    if (uploadedPanels.length === 0) {
+        throw new ApiError(500, "All image uploads to Cloudinary failed. No inspection was created.");
+    }
+
+    // ── Step 2: Create the Inspection record in PROCESSING state ─────────────
+    // Use the first panel as the primary imageUrl for backward-compatibility
+    // with existing dashboard queries that read `inspection.imageUrl`.
+    const primaryPanel = uploadedPanels[0];
+
+    const inspection = await Inspection.create({
+        inspector: req.user._id,
+        imageUrl: primaryPanel.imageUrl,
+        cloudinaryPublicId: primaryPanel.cloudinaryPublicId,
+        multiImages: uploadedPanels,
+        location: {
+            type: "Point",
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+        },
+        status: "PROCESSING"
+    });
+
+    // ── Step 3: Call the AI microservice synchronously ───────────────────────
+    try {
+        const imageUrls = uploadedPanels.map((p) => p.imageUrl);
+        const cvResult = await analyzeMultipleImagesWithFastAPI(imageUrls);
+
+        inspection.status = "COMPLETED";
+        inspection.extractedData = cvResult.extractedData;
+        inspection.boundingBoxes = cvResult.boundingBoxes;
+        inspection.complianceStatus = cvResult.isCompliant ? "COMPLIANT" : "NON_COMPLIANT";
+
+        await inspection.save();
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                {
+                    inspection,
+                    panelsUploaded: uploadedPanels.length,
+                    panelsFailed: uploadErrors.length,
+                    uploadErrors: uploadErrors.length > 0 ? uploadErrors : undefined,
+                    complianceVerdict: {
+                        isCompliant: cvResult.isCompliant,
+                        violations: cvResult.violations,
+                        tamperingDetected: cvResult.tamperingDetected,
+                        tamperingNotes: cvResult.tamperingNotes
+                    }
+                },
+                `Multi-panel scan complete. ${uploadedPanels.length} panel(s) evaluated. Compliance: ${inspection.complianceStatus}`
+            )
+        );
+    } catch (aiError) {
+        // AI call failed — mark the inspection as FAILED but still return the
+        // inspection ID so the dashboard can display it and let admins retry.
+        inspection.status = "FAILED";
+        inspection.failureReason = aiError.message || "Multi-panel AI analysis failed";
+        await inspection.save();
+
+        throw new ApiError(
+            aiError.statusCode || 502,
+            `Images uploaded but AI analysis failed: ${aiError.message}`
+        );
+    }
+});
+
 export {
     uploadInspectionScan,
     getAllInspections,
@@ -384,5 +497,6 @@ export {
     getNearbyInspections,
     getMyInspections,
     getInspectionsByVendor,
-    batchUploadScans
+    batchUploadScans,
+    uploadMultiPanelScan
 };

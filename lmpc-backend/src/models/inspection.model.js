@@ -11,6 +11,16 @@ const boundingBoxSchema = new Schema(
     { _id: false }
 );
 
+// Sub-schema for each image in a multi-panel scan
+const panelImageSchema = new Schema(
+    {
+        imageUrl: { type: String, required: true },
+        cloudinaryPublicId: { type: String, required: true },
+        panelLabel: { type: String, default: null } // e.g. "front", "back", "side"
+    },
+    { _id: false }
+);
+
 const inspectionSchema = new Schema(
     {
         inspector: {
@@ -19,13 +29,19 @@ const inspectionSchema = new Schema(
             required: true,
             index: true
         },
+        // Original single-image field
         imageUrl: {
             type: String,
-            required: true
+            default: null
         },
         cloudinaryPublicId: {
             type: String,
-            required: true
+            default: null
+        },
+        // array for multi-panel scans (1–5 images of the same product)
+        multiImages: {
+            type: [panelImageSchema],
+            default: []
         },
         location: {
             type: {
@@ -35,7 +51,7 @@ const inspectionSchema = new Schema(
                 required: true
             },
             coordinates: {
-                type: [Number], // Format: [longitude, latitude]
+                type: [Number],
                 required: true
             }
         },
@@ -68,7 +84,6 @@ const inspectionSchema = new Schema(
     }
 );
 
-// 2dsphere index for Leaflet geospatial queries and proximity lookups
 inspectionSchema.index({ location: "2dsphere" });
 
 export const Inspection = mongoose.model("Inspection", inspectionSchema);
