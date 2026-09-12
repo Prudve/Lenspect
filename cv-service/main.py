@@ -154,6 +154,10 @@ class NoticeRequest(BaseModel):
     location: Optional[str] = "17.9689° N, 79.5941° E"
     case_id: Optional[str] = None
 
+class CVAnalyzeRequest(BaseModel):
+    image_url: str
+
+
 # ---------------------------------------------------------------------------
 # Gemini Client Helper
 # ---------------------------------------------------------------------------
@@ -516,6 +520,36 @@ async def run_multi_image_comparison(images: List[tuple[str, bytes, str]]) -> Mu
 # ---------------------------------------------------------------------------
 # API Routes
 # ---------------------------------------------------------------------------
+
+@app.post("/api/v1/cv/analyze")
+async def analyze_image_from_queue(request: CVAnalyzeRequest):
+    if not request.image_url:
+        raise HTTPException(status_code=400, detail="image_url is required")
+
+    # Download image bytes from Cloudinary URL
+    image_bytes = await download_image(request.image_url)
+
+    # Run Gemini multimodal vision evaluation
+    compliance_result = await run_metrology_validation(
+        images=image_bytes, mime_type="image/jpeg"
+    )
+
+    # Format response to match Node.js worker requirements
+    return {
+        "success": True,
+        "message": "Image analysis complete",
+        "data": {
+            "extractedData": {
+                "mrp_val": float(compliance_result.extracted_data.mrp.replace("Rs.", "").strip()) if compliance_result.extracted_data.mrp and compliance_result.extracted_data.mrp.replace("Rs.", "").strip().replace(".", "", 1).isdigit() else None,
+                "unit_symbol": compliance_result.extracted_data.net_quantity,
+                "mfg_date": None,
+                "country_origin": compliance_result.extracted_data.manufacturer_details
+            },
+            "boundingBoxes": [],
+            "isCompliant": compliance_result.overall_compliance
+        }
+    }
+
 @app.get("/")
 async def index():
     """Serve the interactive web frontend."""
