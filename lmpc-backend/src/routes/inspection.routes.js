@@ -18,6 +18,7 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { verifyRoles } from "../middlewares/rbac.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { USER_ROLES } from "../constants.js";
+import { uploadLimiter } from "../middlewares/rateLimiter.middleware.js";
 
 const router = Router();
 
@@ -45,12 +46,14 @@ router.route("/geospatial/nearby").get(getNearbyInspections);
 // Single scan upload
 router.route("/upload-scan").post(
     verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
+    uploadLimiter,
     upload.single("image"),
     uploadInspectionScan
 );
 
 router.route("/upload-multi-panel").post(
     verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
+    uploadLimiter,
     upload.array("images", 5),
     uploadMultiPanelScan
 );
@@ -58,6 +61,7 @@ router.route("/upload-multi-panel").post(
 // I7: Batch upload — accepts up to 10 images in one request
 router.route("/batch-upload").post(
     verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
+    uploadLimiter,
     upload.array("images", 10),
     batchUploadScans
 );

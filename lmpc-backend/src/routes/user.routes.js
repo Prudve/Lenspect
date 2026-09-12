@@ -16,12 +16,13 @@ import {
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { verifyRoles } from "../middlewares/rbac.middleware.js";
 import { USER_ROLES } from "../constants.js";
+import { authLimiter } from "../middlewares/rateLimiter.middleware.js";
 
 const router = Router();
 
 // ─── Public Routes ────────────────────────────────────────────────────────────
-router.route("/login").post(loginUser);
-router.route("/refresh-token").post(refreshAccessToken);
+router.route("/login").post(authLimiter, loginUser);
+router.route("/refresh-token").post(authLimiter, refreshAccessToken);
 
 // ─── Protected Routes (any authenticated user) ────────────────────────────────
 router.route("/logout").post(verifyJWT, logoutUser);
@@ -38,6 +39,7 @@ router.route("/me/inspections").get(verifyJWT, getMyInspections);
 router.route("/register").post(
     verifyJWT,
     verifyRoles(USER_ROLES.ADMIN),
+    authLimiter,
     registerUser
 );
 

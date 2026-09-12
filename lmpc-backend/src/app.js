@@ -20,6 +20,9 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
+// Apply global rate limiter to all API routes
+app.use("/api/v1", apiLimiter);
+
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/inspections", inspectionRouter);
 app.use("/api/v1/notices", noticeRouter);
