@@ -75,10 +75,10 @@ export const generateNoticePDF = async (noticeData, outputPath) => {
                 { align: "justify" }
             );
 
-            doc.end();
-
             writeStream.on("finish", () => resolve(outputPath));
             writeStream.on("error", (err) => reject(err));
+            
+            doc.end();
         } catch (error) {
             reject(error);
         }

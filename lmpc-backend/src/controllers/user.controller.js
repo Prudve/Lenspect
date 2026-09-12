@@ -17,6 +17,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
         return { accessToken, refreshToken };
     } catch (error) {
+        console.error("JWT Generation Error:", error);
         throw new ApiError(500, "Something went wrong while generating tokens");
     }
 };
