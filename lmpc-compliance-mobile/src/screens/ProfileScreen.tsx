@@ -64,30 +64,30 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         {/* Section: Legal Metrology Info */}
-        <Text style={styles.sectionHeader}>Legal Metrology Framework</Text>
+        <Text style={styles.sectionHeader}>Department Information</Text>
         <View style={styles.card}>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Department</Text>
+            <Text style={styles.infoValue}>Legal Metrology</Text>
+          </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Statutory Act</Text>
             <Text style={styles.infoValue}>Legal Metrology Act, 2009</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Rules Enforced</Text>
-            <Text style={styles.infoValue}>LMPC Rules (2011 & Amdt.)</Text>
+            <Text style={styles.infoValue}>LMPC Rules, 2011</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Scaling Reference</Text>
-            <Text style={styles.infoValue}>Standard Card (85.6 × 54 mm)</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Geospatial Indexing</Text>
-            <Text style={styles.infoValue}>MongoDB Atlas 2dsphere</Text>
+            <Text style={styles.infoLabel}>App Version</Text>
+            <Text style={styles.infoValue}>1.0.0 (Production)</Text>
           </View>
         </View>
 
         {/* Logout CTA */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={18} color="#DC2626" style={{ marginRight: 6 }} />
-          <Text style={styles.logoutText}>Sign Out of Terminal</Text>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
 

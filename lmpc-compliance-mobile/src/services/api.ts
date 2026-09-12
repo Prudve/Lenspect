@@ -90,8 +90,9 @@ apiClient.interceptors.response.use(
 
       try {
         const refreshToken = await StorageService.getRefreshToken();
-        if (!refreshToken) {
-          throw new Error("No refresh token available");
+        if (!refreshToken || refreshToken.startsWith("demo_mock")) {
+          processQueue(new Error("Demo session or unauthenticated"), null);
+          return Promise.reject(error);
         }
 
         const baseUrl = await getApiBaseUrl();
@@ -112,7 +113,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshErr, null);
         await StorageService.clearTokens();
         await StorageService.clearUser();
-        return Promise.reject(refreshErr);
+        return Promise.reject(new Error("Session expired. Please sign in again."));
       } finally {
         isRefreshing = false;
       }
@@ -125,51 +126,45 @@ apiClient.interceptors.response.use(
 // ─── AUTH APIS ────────────────────────────────────────────────────────
 export const AuthApi = {
   async login(identifier: string, password: string): Promise<AuthResponseData> {
-    const trimmedId = identifier.trim().toLowerCase();
-
-    // Built-in Demo / Offline Credentials (no backend required)
-    if (
-      (trimmedId === "inspector" || trimmedId === "officer@lmpc.gov" || trimmedId === "admin") &&
-      (password === "demo123" || password === "password" || password === "Password@123")
-    ) {
-      const demoUser: User = {
-        _id: "demo_inspector_64a9f",
-        fullName: trimmedId === "admin" ? "Chief Enforcement Officer" : "Field Officer Sharma",
-        username: trimmedId,
-        email: trimmedId.includes("@") ? trimmedId : `${trimmedId}@lmpc.gov`,
-        role: trimmedId === "admin" ? "ADMIN" : "INSPECTOR",
-      };
-
-      const demoData: AuthResponseData = {
-        user: demoUser,
-        accessToken: "demo_mock_jwt_access_token_lenspect",
-        refreshToken: "demo_mock_jwt_refresh_token_lenspect",
-      };
-
-      await StorageService.saveTokens(demoData.accessToken, demoData.refreshToken);
-      await StorageService.saveUser(demoData.user);
-      return demoData;
-    }
-
     const isEmail = identifier.includes("@");
     const payload = isEmail
       ? { email: identifier.trim(), password }
       : { username: identifier.trim().toLowerCase(), password };
 
+    // 1. Always attempt authenticating with the live backend first
     try {
       const response = await apiClient.post<ApiResponse<AuthResponseData>>("/users/login", payload);
       const data = response.data.data;
       await StorageService.saveTokens(data.accessToken, data.refreshToken);
       await StorageService.saveUser(data.user);
       return data;
-    } catch (err: any) {
-      // If backend is unreachable, notify the user about the demo credentials
-      if (!err.response) {
-        throw new Error(
-          "Backend server is offline or unreachable. You can use the built-in Demo Account (Username: inspector, Password: demo123) to test the app!"
-        );
+    } catch (backendErr: any) {
+      // 2. Fallback to offline demo mode only if backend is unreachable or demo credentials given
+      const trimmedId = identifier.trim().toLowerCase();
+      if (
+        (trimmedId === "inspector" || trimmedId === "officer@lmpc.gov" || trimmedId === "admin") &&
+        (password === "demo123" || password === "password" || password === "Password@123" || password === "Admin@123")
+      ) {
+        const demoUser: User = {
+          _id: trimmedId === "admin" ? "6aa5be326025c6a88d7b02c7" : "6aa5be326025c6a88d7b02c8",
+          fullName: trimmedId === "admin" ? "Chief Enforcement Officer" : "Field Officer Sharma",
+          username: trimmedId,
+          email: trimmedId.includes("@") ? trimmedId : `${trimmedId}@legalmetrology.gov.in`,
+          role: trimmedId === "admin" ? "ADMIN" : "INSPECTOR",
+        };
+
+        const demoData: AuthResponseData = {
+          user: demoUser,
+          accessToken: "demo_mock_jwt_access_token_lenspect",
+          refreshToken: "demo_mock_jwt_refresh_token_lenspect",
+        };
+
+        await StorageService.saveTokens(demoData.accessToken, demoData.refreshToken);
+        await StorageService.saveUser(demoData.user);
+        return demoData;
       }
-      throw err;
+
+      throw backendErr;
     }
   },
 
@@ -261,33 +256,11 @@ export const InspectionApi = {
     latitude: number;
     longitude: number;
   }): Promise<Inspection> {
-    try {
-      const formData = new FormData();
-      formData.append("latitude", String(params.latitude));
-      formData.append("longitude", String(params.longitude));
+    const token = await StorageService.getAccessToken();
+    const isDemoMode = token?.startsWith("demo_mock");
 
-      const filename = params.imageUri.split("/").pop() || `scan_${Date.now()}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const ext = match ? match[1].toLowerCase() : "jpg";
-      const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-
-      formData.append("image", {
-        uri: params.imageUri,
-        name: filename,
-        type: mimeType,
-      } as any);
-
-      const response = await apiClient.post<ApiResponse<Inspection>>("/inspections/upload-scan", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        timeout: 10000,
-      });
-
-      return response.data.data;
-    } catch (err: any) {
-      // Offline/Demo Mock Fallback
-      console.log("Using Mock Inspection Upload Fallback");
+    if (isDemoMode) {
+      console.log("Using Mock Inspection Upload (Demo Mode Active)");
       const mockInspection: Inspection = {
         _id: `insp_mock_${Date.now()}`,
         inspector: "demo_inspector_64a9f",
@@ -314,6 +287,102 @@ export const InspectionApi = {
       demoInspections.unshift(mockInspection);
       return mockInspection;
     }
+
+    // Live Backend Upload Mode
+    const formData = new FormData();
+    formData.append("latitude", String(params.latitude));
+    formData.append("longitude", String(params.longitude));
+
+    const filename = params.imageUri.split("/").pop() || `scan_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1].toLowerCase() : "jpg";
+    const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+
+    formData.append("image", {
+      uri: params.imageUri,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    const response = await apiClient.post<ApiResponse<Inspection>>("/inspections/upload-scan", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      timeout: 35000,
+    });
+
+    return response.data.data;
+  },
+
+  async uploadMultiScan(params: {
+    imageUris: string[];
+    latitude: number;
+    longitude: number;
+    panelLabels?: string[];
+  }): Promise<Inspection> {
+    const token = await StorageService.getAccessToken();
+    const isDemoMode = token?.startsWith("demo_mock");
+
+    if (isDemoMode) {
+      const mockInspection: Inspection = {
+        _id: `insp_mock_${Date.now()}`,
+        inspector: "demo_inspector_64a9f",
+        imageUrl: params.imageUris[0],
+        multiImages: params.imageUris.map((uri, idx) => ({
+          imageUrl: uri,
+          panelLabel: params.panelLabels?.[idx] || (idx === 0 ? "Front" : "Back"),
+        })),
+        location: { type: "Point", coordinates: [params.longitude, params.latitude] },
+        status: "COMPLETED",
+        complianceStatus: "COMPLIANT",
+        extractedData: {
+          mrp_val: 120,
+          unit_symbol: "g",
+          mfg_date: new Date().toISOString(),
+          country_origin: "India",
+        },
+        boundingBoxes: [],
+        failureReason: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      demoInspections.unshift(mockInspection);
+      return mockInspection;
+    }
+
+    const formData = new FormData();
+    formData.append("latitude", String(params.latitude));
+    formData.append("longitude", String(params.longitude));
+    if (params.panelLabels && params.panelLabels.length > 0) {
+      formData.append("panelLabels", JSON.stringify(params.panelLabels));
+    }
+
+    params.imageUris.forEach((uri, idx) => {
+      const filename = uri.split("/").pop() || `panel_${idx}_${Date.now()}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const ext = match ? match[1].toLowerCase() : "jpg";
+      const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+
+      formData.append("images", {
+        uri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    });
+
+    const response = await apiClient.post<ApiResponse<any>>(
+      "/inspections/upload-multi-panel",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 60000,
+      }
+    );
+
+    const data = response.data.data;
+    return data.inspection || data;
   },
 
   async getMyInspections(params?: {

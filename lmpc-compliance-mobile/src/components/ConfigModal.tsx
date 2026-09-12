@@ -26,17 +26,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ visible, onClose }) =>
   }, [visible]);
 
   const handleSave = async () => {
-    if (!url.trim()) {
-      Alert.alert("Invalid URL", "Please enter a valid backend endpoint URL");
-      return;
-    }
+    if (!url.trim()) return;
     await updateApiBaseUrl(url);
-    Alert.alert("Updated", "Backend API endpoint saved successfully");
     onClose();
   };
 
   const handleReset = () => {
-    setUrl(DEFAULT_API_BASE_URL || "http://10.0.2.2:8000/api/v1");
+    setUrl(DEFAULT_API_BASE_URL || "http://172.20.202.104:3000/api/v1");
   };
 
   return (
@@ -45,14 +41,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ visible, onClose }) =>
         <View style={styles.card}>
           <Text style={styles.title}>Backend API Host Configuration</Text>
           <Text style={styles.desc}>
-            When running in Expo Go on a real phone, enter your PC's local WiFi IP (e.g., http://192.168.1.X:8000/api/v1).
+            When running in Expo Go on a real phone, enter your PC's local WiFi IP on port 3000 (e.g., http://172.20.202.104:3000/api/v1).
           </Text>
 
           <TextInput
             style={styles.input}
             value={url}
             onChangeText={setUrl}
-            placeholder="http://192.168.1.X:8000/api/v1"
+            placeholder="http://172.20.202.104:3000/api/v1"
             placeholderTextColor="#94A3B8"
             autoCapitalize="none"
             autoCorrect={false}

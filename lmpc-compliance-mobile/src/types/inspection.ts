@@ -15,8 +15,11 @@ export interface BoundingBox {
 export interface ExtractedData {
   mrp_val: number | null;
   unit_symbol: string | null;
+  net_quantity?: string | null;
   mfg_date: string | null;
   country_origin: string | null;
+  manufacturer_name?: string | null;
+  commodity_name?: string | null;
   [key: string]: any;
 }
 
@@ -25,17 +28,32 @@ export interface InspectionLocation {
   coordinates: [number, number]; // [longitude, latitude]
 }
 
+export interface ViolationRule {
+  rule: string;
+  description: string;
+}
+
+export interface PanelImage {
+  imageUrl: string;
+  cloudinaryPublicId?: string;
+  panelLabel?: string | null;
+  panel?: string | null;
+}
+
 export interface Inspection {
   _id: string;
   inspector: User | string;
   imageUrl: string;
   cloudinaryPublicId?: string;
+  multiImages?: PanelImage[];
   location: InspectionLocation;
   status: InspectionStatus;
   extractedData: ExtractedData;
   complianceStatus: ComplianceStatus;
+  violations?: ViolationRule[];
   boundingBoxes: BoundingBox[];
   failureReason: string | null;
+  evidenceHash?: string;
   createdAt: string;
   updatedAt: string;
 }

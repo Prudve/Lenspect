@@ -81,3 +81,5 @@ userSchema.methods.generateRefreshToken = function () {
 };
 
 export const User = mongoose.model("User", userSchema);
+export const Admin = mongoose.models.Admin || mongoose.model("Admin", userSchema);
+export default User;

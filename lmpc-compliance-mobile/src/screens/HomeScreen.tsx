@@ -15,6 +15,7 @@ import {
 import { ComplianceStatusBadge } from "../components/ComplianceStatusBadge";
 import { OfflineBanner } from "../components/OfflineBanner";
 import { useAuth } from "../context/AuthContext";
+import { useOffline } from "../context/OfflineContext";
 import { RootStackParamList } from "../navigation/types";
 import { AnalyticsApi, InspectionApi } from "../services/api";
 import { ComplianceRateData, Inspection, InspectionStatsSummary } from "../types/inspection";
@@ -24,6 +25,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
+  const { isOnline, pendingCount } = useOffline();
 
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [stats, setStats] = useState<InspectionStatsSummary | null>(null);
@@ -57,140 +59,181 @@ export const HomeScreen: React.FC = () => {
     fetchData();
   };
 
+  const rateValue =
+    complianceRate?.complianceRate ??
+    (stats?.total
+      ? Math.round(((stats.byCompliance?.COMPLIANT || 0) / stats.total) * 100)
+      : 85);
+
   return (
     <SafeAreaView style={styles.container}>
       <OfflineBanner />
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38BDF8" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />}
       >
-        {/* Header Bar */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Field Inspector Terminal</Text>
-            <Text style={styles.officerName}>{user?.fullName || "Officer"}</Text>
+        {/* Top Header Row */}
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.statusIndicatorRow}>
+              <View style={[styles.networkDot, { backgroundColor: isOnline ? "#16A34A" : "#D97706" }]} />
+              <Text style={styles.networkStatusText}>
+                {isOnline ? "Online" : "Offline"}
+              </Text>
+            </View>
+            <Text style={styles.officerName}>Hello, {user?.fullName || "Inspector"}</Text>
+            <Text style={styles.jurisdictionText}>Legal Metrology Inspection</Text>
           </View>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{user?.role || "INSPECTOR"}</Text>
-          </View>
+
+          {pendingCount > 0 && (
+            <TouchableOpacity
+              style={styles.pendingBadge}
+              onPress={() => (navigation as any).navigate("Queue")}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-upload-outline" size={14} color="#D97706" />
+              <Text style={styles.pendingBadgeText}>{pendingCount} Saved</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Primary Action Button */}
+        {/* Primary Action Card: Scan Product (PhonePe Style) */}
         <TouchableOpacity
-          style={styles.scanCta}
+          style={styles.heroCard}
           onPress={() => (navigation as any).navigate("Scan")}
           activeOpacity={0.88}
         >
-          <View style={styles.scanIconWrapper}>
-            <Ionicons name="scan-outline" size={28} color="#FFFFFF" />
+          <View style={styles.heroLeft}>
+            <View style={styles.shutterIconCircle}>
+              <Ionicons name="scan" size={26} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.heroTitle}>Scan Product</Text>
+              <Text style={styles.heroDesc}>
+                Point camera to check price, net weight, and mandatory label details
+              </Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.scanCtaTitle}>Start New Field Inspection</Text>
-            <Text style={styles.scanCtaDesc}>
-              Snap package with scaling card for real-time LMPC verification
-            </Text>
+          <View style={styles.heroArrow}>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
           </View>
-          <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
         </TouchableOpacity>
 
-        {/* Stats Grid */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Compliance Overview</Text>
-          {rateResRateText(complianceRate?.complianceRate)}
-        </View>
-
-        {loading ? (
-          <ActivityIndicator size="large" color="#2563EB" style={{ marginVertical: 30 }} />
-        ) : (
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { borderLeftColor: "#3B82F6" }]}>
-              <Text style={styles.statNumber}>{stats?.total || 0}</Text>
-              <Text style={styles.statLabel}>Total Scans</Text>
+        {/* Overview Stats Card */}
+        <View style={styles.metricsCard}>
+          <View style={styles.metricsHeader}>
+            <View>
+              <Text style={styles.metricsTitle}>Inspection Summary</Text>
+              <Text style={styles.metricsSubtitle}>Overall Compliance Rate</Text>
             </View>
+            <View style={styles.rateBadge}>
+              <Text style={styles.rateBadgeValue}>{rateValue}%</Text>
+              <Text style={styles.rateBadgeLabel}>Compliant</Text>
+            </View>
+          </View>
 
-            <View style={[styles.statCard, { borderLeftColor: "#10B981" }]}>
-              <Text style={[styles.statNumber, { color: "#10B981" }]}>
+          {/* Progress Bar */}
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${Math.min(rateValue, 100)}%` }]} />
+          </View>
+
+          {/* 4 Stat Columns */}
+          <View style={styles.statsGrid}>
+            <View style={styles.statColumn}>
+              <Text style={styles.statNumber}>{stats?.total || 0}</Text>
+              <Text style={styles.statLabel}>Total</Text>
+            </View>
+            <View style={styles.statDivider} />
+
+            <View style={styles.statColumn}>
+              <Text style={[styles.statNumber, { color: "#16A34A" }]}>
                 {stats?.byCompliance?.COMPLIANT || 0}
               </Text>
               <Text style={styles.statLabel}>Compliant</Text>
             </View>
+            <View style={styles.statDivider} />
 
-            <View style={[styles.statCard, { borderLeftColor: "#EF4444" }]}>
-              <Text style={[styles.statNumber, { color: "#EF4444" }]}>
+            <View style={styles.statColumn}>
+              <Text style={[styles.statNumber, { color: "#DC2626" }]}>
                 {stats?.byCompliance?.NON_COMPLIANT || 0}
               </Text>
               <Text style={styles.statLabel}>Violations</Text>
             </View>
+            <View style={styles.statDivider} />
 
-            <View style={[styles.statCard, { borderLeftColor: "#F59E0B" }]}>
-              <Text style={[styles.statNumber, { color: "#F59E0B" }]}>
+            <View style={styles.statColumn}>
+              <Text style={[styles.statNumber, { color: "#D97706" }]}>
                 {stats?.byCompliance?.NEEDS_REVIEW || 0}
               </Text>
-              <Text style={styles.statLabel}>Review Req.</Text>
+              <Text style={styles.statLabel}>Review</Text>
             </View>
           </View>
-        )}
+        </View>
 
-        {/* Recent Scans Section */}
+        {/* Recent Inspections Feed */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Recent Scans</Text>
-          <TouchableOpacity onPress={() => (navigation as any).navigate("History")}>
+          <Text style={styles.sectionTitle}>Recent Scans</Text>
+          <TouchableOpacity onPress={() => (navigation as any).navigate("History")} activeOpacity={0.7}>
             <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
         </View>
 
-        {recentInspections.length === 0 && !loading ? (
+        {loading ? (
+          <ActivityIndicator size="small" color="#4F46E5" style={{ marginVertical: 24 }} />
+        ) : recentInspections.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="document-text-outline" size={36} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No Scans Recorded Yet</Text>
+            <Ionicons name="cube-outline" size={32} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>No Scans Yet</Text>
             <Text style={styles.emptySubtitle}>
-              Tap 'Start New Field Inspection' to snap your first package label.
+              Tap the Scan Product button above to start your first inspection.
             </Text>
           </View>
         ) : (
-          recentInspections.map((item) => (
-            <TouchableOpacity
-              key={item._id}
-              style={styles.inspectionCard}
-              onPress={() => navigation.navigate("InspectionDetail", { inspectionId: item._id })}
-            >
-              <View style={styles.cardTop}>
-                <Text style={styles.inspectionDate}>
-                  {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-                <ComplianceStatusBadge status={item.complianceStatus} size="small" />
-              </View>
+          recentInspections.map((item) => {
+            const isCompliantItem = item.complianceStatus === "COMPLIANT";
+            const isViolation = item.complianceStatus === "NON_COMPLIANT";
+            return (
+              <TouchableOpacity
+                key={item._id}
+                style={styles.inspectionRow}
+                onPress={() => navigation.navigate("InspectionDetail", { inspectionId: item._id })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.inspectionLeft}>
+                  <View style={[styles.packageIconBadge, isCompliantItem ? styles.iconBadgeGreen : isViolation ? styles.iconBadgeRed : null]}>
+                    <Ionicons
+                      name={isCompliantItem ? "checkmark-circle" : isViolation ? "alert-circle" : "cube-outline"}
+                      size={20}
+                      color={isCompliantItem ? "#16A34A" : isViolation ? "#DC2626" : "#64748B"}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.inspectionTitle}>
+                      {item.extractedData?.mrp_val
+                        ? `Package (₹${item.extractedData.mrp_val})`
+                        : "Packaged Product"}
+                    </Text>
+                    <Text style={styles.inspectionMeta}>
+                      {new Date(item.createdAt).toLocaleDateString("en-IN", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
 
-              <View style={styles.cardDetails}>
-                <Text style={styles.coordText}>
-                  📍 {item.location?.coordinates?.[1]?.toFixed(4)}, {item.location?.coordinates?.[0]?.toFixed(4)}
-                </Text>
-                {item.extractedData?.mrp_val && (
-                  <Text style={styles.mrpText}>₹{item.extractedData.mrp_val}</Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          ))
+                <ComplianceStatusBadge status={item.complianceStatus} size="small" />
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-function rateResRateText(rate?: number) {
-  if (rate === undefined || rate === null) return null;
-  return (
-    <View style={styles.ratePill}>
-      <Text style={styles.rateText}>{rate}% Rate</Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -198,68 +241,183 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
     paddingBottom: 40,
   },
-  header: {
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
+    alignItems: "flex-start",
+    marginBottom: 16,
   },
-  greeting: {
-    fontSize: 13,
-    color: "#64748B",
+  statusIndicatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  networkDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  networkStatusText: {
+    fontSize: 12,
     fontWeight: "600",
+    color: "#64748B",
   },
   officerName: {
     fontSize: 20,
     fontWeight: "800",
     color: "#0F172A",
-    marginTop: 2,
   },
-  roleBadge: {
-    backgroundColor: "#E2E8F0",
+  jurisdictionText: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FEF3C7",
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
   },
-  roleText: {
-    fontSize: 11,
+  pendingBadgeText: {
+    fontSize: 12,
     fontWeight: "700",
-    color: "#334155",
+    color: "#B45309",
   },
-  scanCta: {
-    backgroundColor: "#1E3A8A",
-    borderRadius: 16,
+  heroCard: {
+    backgroundColor: "#4F46E5",
+    borderRadius: 18,
     padding: 18,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
-    shadowColor: "#1E3A8A",
-    shadowOpacity: 0.3,
+    justifyContent: "space-between",
+    marginBottom: 18,
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
   },
-  scanIconWrapper: {
+  heroLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  shutterIconCircle: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
   },
-  scanCtaTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
+  heroTitle: {
+    fontSize: 17,
     fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 2,
   },
-  scanCtaDesc: {
-    color: "#93C5FD",
+  heroDesc: {
     fontSize: 12,
-    marginTop: 3,
+    color: "rgba(255, 255, 255, 0.82)",
     lineHeight: 16,
+  },
+  heroArrow: {
+    marginLeft: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  metricsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  metricsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  metricsTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  metricsSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  rateBadge: {
+    alignItems: "flex-end",
+  },
+  rateBadgeValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#16A34A",
+  },
+  rateBadgeLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#16A34A",
+    borderRadius: 3,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  statColumn: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#E2E8F0",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -272,104 +430,71 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
   },
-  ratePill: {
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  rateText: {
-    color: "#166534",
-    fontSize: 11,
-    fontWeight: "700",
-  },
   viewAllText: {
-    color: "#2563EB",
     fontSize: 13,
     fontWeight: "600",
-  },
-  statsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 14,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
-    fontWeight: "500",
+    color: "#4F46E5",
   },
   emptyCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 30,
+    borderRadius: 14,
+    padding: 24,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderStyle: "dashed",
   },
   emptyTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#475569",
-    marginTop: 10,
+    marginTop: 8,
   },
   emptySubtitle: {
     fontSize: 12,
     color: "#94A3B8",
     textAlign: "center",
     marginTop: 4,
+    lineHeight: 18,
   },
-  inspectionCard: {
+  inspectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    padding: 14,
+    borderRadius: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  cardTop: {
+  inspectionLeft: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    flex: 1,
+    marginRight: 10,
   },
-  inspectionDate: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  cardDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  packageIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
     alignItems: "center",
   },
-  coordText: {
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: "500",
+  iconBadgeGreen: {
+    backgroundColor: "#DCFCE7",
   },
-  mrpText: {
+  iconBadgeRed: {
+    backgroundColor: "#FEE2E2",
+  },
+  inspectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#059669",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  inspectionMeta: {
+    fontSize: 11,
+    color: "#64748B",
   },
 });

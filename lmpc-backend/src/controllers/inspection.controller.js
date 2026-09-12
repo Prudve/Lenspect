@@ -450,6 +450,7 @@ const uploadMultiPanelScan = asyncHandler(async (req, res) => {
         inspection.extractedData = cvResult.extractedData;
         inspection.boundingBoxes = cvResult.boundingBoxes;
         inspection.complianceStatus = cvResult.isCompliant ? "COMPLIANT" : "NON_COMPLIANT";
+        inspection.violations = cvResult.violations || [];
 
         await inspection.save();
 

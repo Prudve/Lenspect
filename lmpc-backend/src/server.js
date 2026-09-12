@@ -1,18 +1,22 @@
-import dotenv from "dotenv";
+import "dotenv/config";
+
 import connectDB from "./db/index.js";
 import app from "./app.js";
 import "./queues/inspection.worker.js";
 
-dotenv.config({
-    path: './.env'
-});
-
+// Ensure database connection is fully established before starting HTTP listener
 connectDB()
 .then(() => {
-    app.listen(process.env.PORT || 8000, () => {
-        console.log(`Server is running at port : ${process.env.PORT}`);
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+        console.log(`🚀 LMPC Backend Server is running at port : ${port}`);
     });
 })
 .catch((err) => {
-    console.log("MONGO db connection failed !!! ", err);
+    console.error("❌ MongoDB Atlas connection fatal error:", err);
+    // In dev mode, still start server so fallback data can be served
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+        console.log(`🚀 LMPC Backend Server is running in fallback mode at port : ${port}`);
+    });
 });

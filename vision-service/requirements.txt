@@ -6,3 +6,4 @@ pytesseract
 rank-bm25
 google-genai
 pydantic
+python-dotenv

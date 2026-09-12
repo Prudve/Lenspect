@@ -27,17 +27,17 @@ const MainTabsNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#2563EB",
-        tabBarInactiveTintColor: "#64748B",
+        tabBarActiveTintColor: "#0F172A",
+        tabBarInactiveTintColor: "#94A3B8",
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
           borderTopColor: "#E2E8F0",
-          height: 60,
+          height: 64,
           paddingBottom: 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
         },
       }}

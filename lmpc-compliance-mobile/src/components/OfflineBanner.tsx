@@ -16,24 +16,26 @@ export const OfflineBanner: React.FC = () => {
     <View style={[styles.container, !isOnline ? styles.offlineBg : styles.syncBg]}>
       <View style={styles.leftContent}>
         <Ionicons
-          name={!isOnline ? "cloud-offline-outline" : "cloud-upload-outline"}
-          size={18}
-          color="#FFFFFF"
+          name={!isOnline ? "cloud-offline" : "cloud-upload"}
+          size={16}
+          color={!isOnline ? "#92400E" : "#1E40AF"}
           style={styles.icon}
         />
-        <Text style={styles.bannerText}>
+        <Text style={[styles.bannerText, !isOnline ? styles.textOffline : styles.textSync]}>
           {!isOnline
-            ? `Offline Mode: ${pendingCount} scan(s) queued locally`
+            ? pendingCount > 0
+              ? `Offline: ${pendingCount} scan(s) saved on device`
+              : "Offline: Scans will save to device"
             : isSyncing
             ? "Syncing scans to server..."
-            : `${pendingCount} scan(s) ready to sync`}
+            : `${pendingCount} saved scan(s) ready to upload`}
         </Text>
       </View>
 
       {isOnline && pendingCount > 0 && (
         <TouchableOpacity style={styles.syncBtn} onPress={syncQueue} disabled={isSyncing}>
           {isSyncing ? (
-            <ActivityIndicator size="small" color="#1E293B" />
+            <ActivityIndicator size="small" color="#1E40AF" />
           ) : (
             <Text style={styles.syncBtnText}>Sync Now</Text>
           )}
@@ -49,13 +51,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
   },
   offlineBg: {
-    backgroundColor: "#DC2626", // Red for offline
+    backgroundColor: "#FEF3C7",
+    borderBottomColor: "#FDE68A",
   },
   syncBg: {
-    backgroundColor: "#2563EB", // Blue for pending sync
+    backgroundColor: "#EFF6FF",
+    borderBottomColor: "#BFDBFE",
   },
   leftContent: {
     flexDirection: "row",
@@ -66,19 +71,24 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   bannerText: {
-    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
   },
+  textOffline: {
+    color: "#92400E",
+  },
+  textSync: {
+    color: "#1E40AF",
+  },
   syncBtn: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 10,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
     marginLeft: 8,
   },
   syncBtnText: {
-    color: "#1E293B",
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
   },

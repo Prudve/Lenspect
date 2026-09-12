@@ -129,7 +129,7 @@ export const InspectionsListScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Inspection Archive</Text>
+        <Text style={styles.headerTitle}>Past Inspections</Text>
       </View>
 
       {/* Filter Tabs */}

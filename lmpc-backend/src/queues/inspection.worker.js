@@ -31,6 +31,7 @@ export const inspectionWorker = new Worker(
             inspection.complianceStatus = cvResults.isCompliant
                 ? "COMPLIANT"
                 : "NON_COMPLIANT";
+            inspection.violations = cvResults.violations || [];
             
             await inspection.save();
             console.log(`[Queue Worker] Job ${job.id} completed successfully`);

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { User } from "../types/auth";
 import { OfflineInspectionItem } from "../types/queue";
@@ -10,12 +11,22 @@ const USER_KEY = "lmpc_user_profile";
 const API_BASE_URL_KEY = "lmpc_custom_api_url";
 const OFFLINE_QUEUE_KEY = "lmpc_offline_queue";
 
-// Default backend URL (Port 8000 as defined in your server.js)
-export const DEFAULT_API_BASE_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api/v1", // Android Emulator host loopback
-  ios: "http://localhost:8000/api/v1",    // iOS Simulator
-  default: "http://192.168.1.5:8000/api/v1", // Typical LAN IP for physical device
-});
+// Automatically detect host machine's LAN IP from Expo Go connection
+const getHostIp = (): string => {
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    return hostUri.split(":")[0];
+  }
+  return "172.20.202.104";
+};
+
+const devHostIp = getHostIp();
+
+// Default backend URL — points to Express API on port 3000
+export const DEFAULT_API_BASE_URL = `http://${devHostIp}:3000/api/v1`;
 
 async function setSecureItem(key: string, value: string): Promise<void> {
   try {

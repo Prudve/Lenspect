@@ -79,15 +79,15 @@ export const OfflineQueueScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Offline Queue</Text>
+          <Text style={styles.headerTitle}>Saved Scans</Text>
           <Text style={styles.headerSubtitle}>
-            {queue.length} scan(s) cached locally in device memory
+            {queue.length} scan(s) saved on this device
           </Text>
         </View>
 
         {queue.length > 0 && (
           <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>Clear</Text>
+            <Text style={styles.clearBtnText}>Clear All</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -101,8 +101,8 @@ export const OfflineQueueScreen: React.FC = () => {
         />
         <Text style={[styles.networkText, { color: isOnline ? "#15803D" : "#B91C1C" }]}>
           {isOnline
-            ? "Network Available: Ready to stream to Express gateway"
-            : "No Connection: Scans securely queued on device"}
+            ? "Connected: Ready to sync saved scans"
+            : "Offline: Scans are saved securely on device"}
         </Text>
       </View>
 
@@ -113,10 +113,10 @@ export const OfflineQueueScreen: React.FC = () => {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="cloud-done-outline" size={50} color="#10B981" />
-            <Text style={styles.emptyTitle}>Queue Is Clean</Text>
+            <Ionicons name="cloud-done-outline" size={48} color="#16A34A" />
+            <Text style={styles.emptyTitle}>All Scans Uploaded</Text>
             <Text style={styles.emptyDesc}>
-              All field scans have been successfully synchronized with the Cloudinary & BullMQ pipeline.
+              No pending scans waiting on this device.
             </Text>
           </View>
         }

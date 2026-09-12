@@ -3,18 +3,18 @@ import fs from "fs";
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY, 
-    api_secret: process.env.CLOUDINARY_API_SECRET 
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const uploadOnCloudinary = async (localFilePath) => {
     try {
         if (!localFilePath) return null;
-        
+
         const response = await cloudinary.uploader.upload(localFilePath, {
-            resource_type: "auto"
+            resource_type: "raw"
         });
-        
+
         console.log("file is uploaded on cloudinary", response.url);
 
         if (fs.existsSync(localFilePath)) {
@@ -33,13 +33,13 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 }
 
-const deleteFileOnCloudinary = async (publicId, resourceType="image") =>{
+const deleteFileOnCloudinary = async (publicId, resourceType = "image") => {
     try {
-        if(!publicId) return null;
-        const result=await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
+        if (!publicId) return null;
+        const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
 
-        if(result.result === "ok") console.log("File deleted Successfully");
-        
+        if (result.result === "ok") console.log("File deleted Successfully");
+
         return result.result === "ok" ? result : null;
     } catch (error) {
         console.error("Cloudinary deletion error:", error);
@@ -47,4 +47,4 @@ const deleteFileOnCloudinary = async (publicId, resourceType="image") =>{
     }
 }
 
-export { uploadOnCloudinary, deleteFileOnCloudinary};
+export { uploadOnCloudinary, deleteFileOnCloudinary };

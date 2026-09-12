@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -22,19 +21,30 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [configVisible, setConfigVisible] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    setErrorMessage(null);
     if (!identifier.trim() || !password) {
-      Alert.alert("Missing Fields", "Please enter your username/email and password.");
+      setErrorMessage("Please enter your username and password.");
       return;
     }
 
     try {
       await login(identifier.trim(), password);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || "Invalid credentials. Please verify your backend.";
-      Alert.alert("Authentication Failed", msg);
+      const msg = err?.response?.data?.message || err?.message || "Invalid username or password. Please try again.";
+      setErrorMessage(msg);
     }
+  };
+
+  const handleQuickFill = (user: string, pass: string) => {
+    setIdentifier(user);
+    setPassword(pass);
+    setErrorMessage(null);
+    login(user, pass).catch((err) => {
+      setErrorMessage(err?.message || "Unable to sign in. Please verify your connection.");
+    });
   };
 
   return (
@@ -44,36 +54,52 @@ export const LoginScreen: React.FC = () => {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Header */}
+          {/* Top Bar with Server Config */}
           <View style={styles.topBar}>
-            <TouchableOpacity style={styles.configBtn} onPress={() => setConfigVisible(true)}>
-              <Ionicons name="server-outline" size={18} color="#475569" />
-              <Text style={styles.configBtnText}>Server IP</Text>
+            <View style={styles.govTag}>
+              <View style={styles.govDot} />
+              <Text style={styles.govTagText}>Legal Metrology</Text>
+            </View>
+            <TouchableOpacity style={styles.configBtn} onPress={() => setConfigVisible(true)} activeOpacity={0.7}>
+              <Ionicons name="settings-outline" size={18} color="#64748B" />
             </TouchableOpacity>
           </View>
 
+          {/* Brand Header */}
           <View style={styles.brandContainer}>
             <View style={styles.logoBadge}>
-              <Ionicons name="shield-checkmark" size={38} color="#2563EB" />
+              <Ionicons name="shield-checkmark" size={32} color="#4F46E5" />
             </View>
-            <Text style={styles.title}>LENSPECT MOBILE</Text>
-            <Text style={styles.subtitle}>Legal Metrology (LMPC) Field Verification</Text>
+            <Text style={styles.title}>LENSPECT</Text>
+            <Text style={styles.subtitle}>Package Compliance Scanner</Text>
+            <Text style={styles.subtext}>Legal Metrology Inspection App</Text>
           </View>
 
-          {/* Form Card */}
+          {/* Login Card */}
           <View style={styles.formCard}>
             <Text style={styles.cardHeader}>Inspector Sign In</Text>
+
+            {/* Inline Error Message (PhonePe style, zero popups) */}
+            {errorMessage && (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.errorBoxText}>{errorMessage}</Text>
+              </View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Username or Email</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={18} color="#64748B" style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={17} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="inspector_john / officer@lmpc.gov"
+                  placeholder="Enter your inspector username"
                   placeholderTextColor="#94A3B8"
                   value={identifier}
-                  onChangeText={setIdentifier}
+                  onChangeText={(val) => {
+                    setIdentifier(val);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
@@ -83,58 +109,75 @@ export const LoginScreen: React.FC = () => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={17} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your password"
                   placeholderTextColor="#94A3B8"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(val) => {
+                    setPassword(val);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
                   secureTextEntry={!showPassword}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={18}
-                    color="#64748B"
+                    color="#94A3B8"
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={isLoading}>
+            <TouchableOpacity
+              style={[styles.loginBtn, isLoading && styles.btnDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+              activeOpacity={0.85}
+            >
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.loginBtnText}>Access Inspection Terminal</Text>
+                <View style={styles.btnRow}>
+                  <Text style={styles.loginBtnText}>Sign In</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </View>
               )}
             </TouchableOpacity>
 
-            {/* Built-in Offline Test Account (No backend needed) */}
-            <View style={styles.demoCard}>
-              <View style={styles.demoHeader}>
-                <Ionicons name="flash" size={14} color="#D97706" />
-                <Text style={styles.demoHeaderText}>Built-in Test Account (No Backend Required)</Text>
+            {/* Quick Demo Access Chips */}
+            <View style={styles.quickAccessSection}>
+              <Text style={styles.quickAccessLabel}>Quick Sign In for Testing</Text>
+              <View style={styles.chipsRow}>
+                <TouchableOpacity
+                  style={styles.chipBtn}
+                  onPress={() => handleQuickFill("inspector", "demo123")}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="person" size={13} color="#4F46E5" />
+                  <Text style={styles.chipText}>Inspector</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.chipBtn}
+                  onPress={() => handleQuickFill("admin@legalmetrology.gov.in", "Admin@123")}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="shield" size={13} color="#475569" />
+                  <Text style={styles.chipText}>Supervisor</Text>
+                </TouchableOpacity>
               </View>
-
-              <Text style={styles.demoDesc}>
-                Credentials: <Text style={styles.boldText}>inspector</Text> | Password: <Text style={styles.boldText}>demo123</Text>
-              </Text>
-
-              <TouchableOpacity
-                style={styles.instantDemoBtn}
-                onPress={() => login("inspector", "demo123")}
-                disabled={isLoading}
-              >
-                <Ionicons name="play-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.instantDemoBtnText}>Instant Demo Sign In (1-Tap)</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
+          {/* Clean Footer */}
           <View style={styles.footerNote}>
             <Text style={styles.footerText}>
-              Statutory verification compliant with Legal Metrology (Packaged Commodities) Rules
+              Legal Metrology (Packaged Commodities) Rules, 2011
             </Text>
           </View>
         </ScrollView>
@@ -148,185 +191,213 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
     justifyContent: "space-between",
   },
   topBar: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingTop: 12,
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 10,
   },
-  configBtn: {
+  govTag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
     gap: 6,
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
-  configBtnText: {
-    color: "#475569",
+  govDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4F46E5",
+  },
+  govTagText: {
     fontSize: 12,
     fontWeight: "600",
+    color: "#4338CA",
+  },
+  configBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   brandContainer: {
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 28,
+    marginTop: 18,
+    marginBottom: 20,
   },
   logoBadge: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     borderRadius: 20,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1.5,
-    borderColor: "#BFDBFE",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 14,
-    shadowColor: "#2563EB",
+    marginBottom: 12,
+    shadowColor: "#4F46E5",
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 10,
+    elevation: 3,
   },
   title: {
     color: "#0F172A",
     fontSize: 22,
     fontWeight: "800",
-    letterSpacing: 1.2,
+    letterSpacing: 2,
   },
   subtitle: {
-    color: "#64748B",
-    fontSize: 13,
-    marginTop: 6,
+    color: "#334155",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  subtext: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 2,
   },
   formCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 18,
+    padding: 20,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     shadowColor: "#0F172A",
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
+    fontSize: 17,
+    fontWeight: "700",
     color: "#0F172A",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 20,
+    marginBottom: 14,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  errorBoxText: {
+    color: "#991B1B",
+    fontSize: 13,
+    fontWeight: "500",
+    flex: 1,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   label: {
-    color: "#334155",
     fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 6,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    borderWidth: 1.2,
-    borderColor: "#CBD5E1",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     borderRadius: 12,
     paddingHorizontal: 12,
+    height: 48,
   },
   inputIcon: {
     marginRight: 8,
   },
   input: {
     flex: 1,
-    color: "#0F172A",
     fontSize: 14,
-    paddingVertical: 12,
+    color: "#0F172A",
   },
   eyeBtn: {
     padding: 6,
   },
   loginBtn: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4F46E5",
     borderRadius: 12,
-    paddingVertical: 14,
+    height: 48,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 12,
-    shadowColor: "#2563EB",
+    marginTop: 8,
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 3,
+  },
+  btnDisabled: {
+    opacity: 0.7,
+  },
+  btnRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   loginBtnText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
-    letterSpacing: 0.4,
   },
-  demoCard: {
-    marginTop: 20,
-    backgroundColor: "#FEFCE8",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#FDE047",
+  quickAccessSection: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
   },
-  demoHeader: {
+  quickAccessLabel: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "600",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  chipsRow: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+  },
+  chipBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 6,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  demoHeaderText: {
-    color: "#B45309",
+  chipText: {
     fontSize: 12,
-    fontWeight: "800",
-  },
-  demoDesc: {
-    color: "#78350F",
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  boldText: {
-    color: "#451A03",
-    fontWeight: "800",
-  },
-  instantDemoBtn: {
-    backgroundColor: "#059669",
-    borderRadius: 10,
-    paddingVertical: 12,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#059669",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  instantDemoBtnText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#334155",
   },
   footerNote: {
     alignItems: "center",
-    marginTop: 26,
+    marginTop: 18,
   },
   footerText: {
-    color: "#94A3B8",
     fontSize: 11,
+    color: "#94A3B8",
     textAlign: "center",
-    lineHeight: 16,
   },
 });

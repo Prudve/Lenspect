@@ -1,6 +1,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, 
+  Flame,
   PackageCheck, 
   AlertTriangle, 
   FileBarChart, 
@@ -12,6 +13,7 @@ import './Sidebar.css';
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'hotspot-map', label: 'Hotspot Analytics', icon: Flame },
   { id: 'scanned-products', label: 'Scanned Products', icon: PackageCheck },
   { id: 'violations', label: 'Violations', icon: AlertTriangle },
   { id: 'compliance-reports', label: 'Compliance Reports', icon: FileBarChart },
@@ -61,9 +63,9 @@ function Sidebar({ currentSection, onSelectSection }) {
         <div className="system-status-indicator">
           <div className="status-dot-wrapper">
             <span className="status-dot" />
-            <span>Enforcement Online</span>
+            <span>System Active</span>
           </div>
-          <span className="system-version">v1.0-SIH</span>
+          <span className="system-version">Portal v2.4</span>
         </div>
       </div>
     </aside>

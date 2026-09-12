@@ -1,4 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useParams
+} from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
 import MainLayout from './components/layout/MainLayout';
 import OverviewPage from './pages/OverviewPage';
 import ScannedProductsPage from './pages/ScannedProductsPage';
@@ -7,17 +18,17 @@ import ViolationsPage from './pages/ViolationsPage';
 import ComplianceReportsPage from './pages/ComplianceReportsPage';
 import InspectionHistoryPage from './pages/InspectionHistoryPage';
 import ProductDetailsPage from './pages/ProductDetailsPage';
+import ViolationHeatmap from './components/dashboard/ViolationHeatmap';
 import { INSPECTION_HISTORY_DATA } from './data/inspectionHistoryMockData';
 
 import {
   LayoutDashboard,
+  Flame,
   PackageCheck,
   AlertTriangle,
   FileBarChart,
   Users,
-  History,
-  ShieldAlert,
-  Info
+  History
 } from 'lucide-react';
 
 const SECTIONS_CONFIG = {
@@ -26,9 +37,19 @@ const SECTIONS_CONFIG = {
     subtitle: 'Compliance monitoring and inspection overview',
     headline: 'Supervisor Dashboard',
     description: 'Real-time compliance monitoring and inspection overview across designated jurisdictions.',
-    stepInfo: 'Scheduled for Step 3',
-    details: 'This section will house high-level compliance metrics (Total Inspected, Compliant, Non-Compliant), statutory violation distribution, and recent scans feed.',
+    stepInfo: 'Enforcement Portal',
+    details: 'This section houses high-level compliance metrics, statutory violation distribution, and recent scans feed.',
     icon: LayoutDashboard
+  },
+
+  'hotspot-map': {
+    title: 'Hotspot Analytics',
+    subtitle: 'Geographical distribution of Legal Metrology non-compliance & violation hotspots',
+    headline: 'Jurisdiction Hotspot Surveillance',
+    description: 'Real-time GPS heatmap tracking high-offence pin codes and rule violation frequencies under PC Rules, 2011.',
+    stepInfo: 'Enforcement Portal',
+    details: 'Interactive Leaflet GIS map displaying concentrated areas of non-compliance (Rule 6(11), Rule 9, Rule 6(1)(e), etc.) with live pin code drill-downs.',
+    icon: Flame
   },
 
   'scanned-products': {
@@ -36,8 +57,8 @@ const SECTIONS_CONFIG = {
     subtitle: 'Enforcement records of packaged commodities inspected by field officers',
     headline: 'Scanned Products Directory',
     description: 'Searchable repository of all commodities scanned by mobile field inspectors.',
-    stepInfo: 'Scheduled for Step 4',
-    details: 'Will display tabular and filterable views of scanned packages, commodity categories, brands, manufacturers, and immediate compliance statuses.',
+    stepInfo: 'Enforcement Portal',
+    details: 'Displays tabular and filterable views of scanned packages, commodity categories, brands, manufacturers, and immediate compliance statuses.',
     icon: PackageCheck
   },
 
@@ -46,8 +67,8 @@ const SECTIONS_CONFIG = {
     subtitle: 'Detailed breakdown of Legal Metrology declaration breaches',
     headline: 'Violations & Enforcement Actions',
     description: 'Enforcement tracking for missing or non-compliant mandatory declarations under PC Rules, 2011.',
-    stepInfo: 'Scheduled for Step 6',
-    details: 'Will track missing declarations (MRP, Net Quantity, Mfg Date, Consumer Care, Manufacturer details) and repeat-offender patterns.',
+    stepInfo: 'Enforcement Portal',
+    details: 'Tracks missing declarations (MRP, Net Quantity, Mfg Date, Consumer Care, Manufacturer details) and repeat-offender patterns.',
     icon: AlertTriangle
   },
 
@@ -56,7 +77,7 @@ const SECTIONS_CONFIG = {
     subtitle: 'Statutory reporting and audit summaries under PC Rules, 2011',
     headline: 'Compliance Reports & Analytics',
     description: 'Official enforcement analytics and exportable compliance summaries.',
-    stepInfo: 'Scheduled for Step 7',
+    stepInfo: 'Enforcement Portal',
     details: 'Enables supervisors to generate official compliance reports, zone summaries, and audit exports for the Department of Consumer Affairs.',
     icon: FileBarChart
   },
@@ -66,7 +87,7 @@ const SECTIONS_CONFIG = {
     subtitle: 'Field inspector workforce deployment and scanning performance',
     headline: 'Field Inspector Monitoring',
     description: 'Field officer directory, active inspection locations, and scanning productivity.',
-    stepInfo: 'Scheduled for Step 8',
+    stepInfo: 'Enforcement Portal',
     details: 'Tracks field inspectors, their assigned districts/markets, total scans performed, and verification accuracy.',
     icon: Users
   },
@@ -76,89 +97,51 @@ const SECTIONS_CONFIG = {
     subtitle: 'Chronological audit trail of all commodity scans and verification actions',
     headline: 'Inspection Audit Trail',
     description: 'Complete chronological history and timestamped audit logs of all past inspections.',
-    stepInfo: 'Scheduled for Step 9',
+    stepInfo: 'Enforcement Portal',
     details: 'Provides a tamper-evident record of all historical scans, supervisor reviews, and enforcement actions taken.',
     icon: History
   }
 };
 
-function App() {
-  const getRouteFromHash = () => {
-    const hash = window.location.hash.replace('#', '');
+/**
+ * Product Details Route Adapter
+ */
+function ProductDetailsWrapper() {
+  const { inspectionId } = useParams();
+  const navigate = useNavigate();
 
-    if (hash.startsWith('product-details/')) {
-      return 'product-details';
-    }
-
-    return SECTIONS_CONFIG[hash] ? hash : 'overview';
+  const inspection = INSPECTION_HISTORY_DATA.find((item) => item.id === inspectionId) || {
+    id: inspectionId,
+    product: 'Packaged Commodity',
+    category: 'Food',
+    inspector: 'Anil Kumar',
+    inspectorId: 'LM-701',
+    date: '12 Sep 2026, 10:15 AM',
+    status: 'Non-Compliant'
   };
 
-  const getInspectionFromHash = () => {
-    const hash = window.location.hash.replace('#', '');
-
-    if (!hash.startsWith('product-details/')) {
-      return null;
-    }
-
-    const inspectionId = hash.split('/')[1];
-
-    return (
-      INSPECTION_HISTORY_DATA.find(
-        (item) => item.id === inspectionId
-      ) || null
-    );
-  };
-
-  const [currentSection, setCurrentSection] = useState(getRouteFromHash);
-  const [selectedInspection, setSelectedInspection] = useState(
-    getInspectionFromHash
+  return (
+    <ProductDetailsPage
+      product={{
+        ...inspection,
+        inspectionId: inspection.id
+      }}
+      onBack={() => navigate('/inspection-history')}
+    />
   );
+}
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      const route = getRouteFromHash();
+/**
+ * Protected Dashboard Shell with MainLayout and React Router
+ */
+function DashboardShell({ children, currentSection }) {
+  const navigate = useNavigate();
 
-      if (route === 'product-details') {
-        setSelectedInspection(getInspectionFromHash());
-      } else {
-        setSelectedInspection(null);
-        setCurrentSection(route);
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-    };
-  }, []);
+  const activeMeta = SECTIONS_CONFIG[currentSection] || SECTIONS_CONFIG.overview;
 
   const handleSelectSection = (sectionId) => {
-    setSelectedInspection(null);
-    setCurrentSection(sectionId);
-    window.location.hash = sectionId;
+    navigate(`/${sectionId}`);
   };
-
-  const handleViewInspection = (inspectionId) => {
-    const inspection = INSPECTION_HISTORY_DATA.find(
-      (item) => item.id === inspectionId
-    );
-
-    setSelectedInspection(inspection || null);
-    window.location.hash = `product-details/${inspectionId}`;
-  };
-
-  const handleBackToHistory = () => {
-    setSelectedInspection(null);
-    setCurrentSection('inspection-history');
-    window.location.hash = 'inspection-history';
-  };
-
-  const activeMeta =
-    SECTIONS_CONFIG[currentSection] ||
-    SECTIONS_CONFIG.overview;
-
-  const SectionIcon = activeMeta.icon;
 
   return (
     <MainLayout
@@ -166,103 +149,128 @@ function App() {
       onSelectSection={handleSelectSection}
       sectionMeta={activeMeta}
     >
-      {selectedInspection ? (
-        <ProductDetailsPage
-          product={{
-            ...selectedInspection,
-            inspectionId: selectedInspection.id
-          }}
-          onBack={handleBackToHistory}
-        />
-      ) : currentSection === 'overview' ? (
-        <OverviewPage />
-      ) : currentSection === 'scanned-products' ? (
-        <ScannedProductsPage />
-      ) : currentSection === 'violations' ? (
-        <ViolationsPage />
-      ) : currentSection === 'compliance-reports' ? (
-        <ComplianceReportsPage />
-      ) : currentSection === 'inspectors' ? (
-        <InspectorsPage />
-      ) : currentSection === 'inspection-history' ? (
-        <InspectionHistoryPage
-          onViewInspection={handleViewInspection}
-        />
-      ) : (
-        <div className="placeholder-container">
-          <div className="placeholder-card">
-            <div className="placeholder-header">
-              <div className="placeholder-title-group">
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '0.25rem'
-                  }}
-                >
-                  <SectionIcon
-                    size={24}
-                    color="var(--color-primary)"
-                  />
-
-                  <h2 className="placeholder-title">
-                    {activeMeta.headline}
-                  </h2>
-                </div>
-
-                <p className="placeholder-desc">
-                  {activeMeta.description}
-                </p>
-              </div>
-
-              <span className="placeholder-step-badge">
-                {activeMeta.stepInfo}
-              </span>
-            </div>
-
-            <div className="placeholder-info-box">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  marginBottom: '0.5rem',
-                  color: 'var(--color-primary)',
-                  fontWeight: 600
-                }}
-              >
-                <Info size={16} />
-                <span>Section Scope & Roadmap:</span>
-              </div>
-
-              <p>{activeMeta.details}</p>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.8rem',
-                color: 'var(--color-text-muted)',
-                marginTop: '0.5rem'
-              }}
-            >
-              <ShieldAlert
-                size={15}
-                color="var(--color-text-subtle)"
-              />
-
-              <span>
-                Legal Metrology (Packaged Commodities) Rules, 2011
-                Compliance System &bull; Active Layout Shell
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {children}
     </MainLayout>
+  );
+}
+
+/**
+ * Main Application Root with Authentication and Route Guarding
+ */
+function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Login Route */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected Dashboard Routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/overview" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/overview"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="overview">
+                  <OverviewPage />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* New Action Item: Hotspot Analytics with Leaflet Heatmap */}
+          <Route
+            path="/hotspot-map"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="hotspot-map">
+                  <ViolationHeatmap />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/scanned-products"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="scanned-products">
+                  <ScannedProductsPage />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/violations"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="violations">
+                  <ViolationsPage />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/compliance-reports"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="compliance-reports">
+                  <ComplianceReportsPage />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/inspectors"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="inspectors">
+                  <InspectorsPage />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/inspection-history"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="inspection-history">
+                  <InspectionHistoryPage
+                    onViewInspection={(id) => (window.location.href = `/product-details/${id}`)}
+                  />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/product-details/:inspectionId"
+            element={
+              <ProtectedRoute>
+                <DashboardShell currentSection="inspection-history">
+                  <ProductDetailsWrapper />
+                </DashboardShell>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch-all Redirect */}
+          <Route path="*" element={<Navigate to="/overview" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

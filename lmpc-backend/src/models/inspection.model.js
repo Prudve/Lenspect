@@ -21,6 +21,42 @@ const panelImageSchema = new Schema(
     { _id: false }
 );
 
+// Sub-schema for the Section 63 BSA evidence certificate
+const bsaCertificateSchema = new Schema(
+    {
+        // The SHA-256 hex digest of the canonical evidence payload
+        sha256Hash: {
+            type: String,
+            required: true,
+            immutable: true
+        },
+        // Per-image SHA-256 hashes — binds the certificate to exact pixel data
+        imageHashes: {
+            type: [String],
+            default: [],
+            immutable: true
+        },
+        // NTP-sourced ISO-8601 timestamp used in the canonical payload
+        networkTimestamp: {
+            type: String,
+            required: true,
+            immutable: true
+        },
+        // GPS coordinates at time of capture
+        gps: {
+            latitude:  { type: Number, required: true, immutable: true },
+            longitude: { type: Number, required: true, immutable: true }
+        },
+        // Snapshot of the AI result included in the hash (for re-verification)
+        aiResultSnapshot: {
+            type: Schema.Types.Mixed,
+            required: true,
+            immutable: true
+        }
+    },
+    { _id: false }
+);
+
 const inspectionSchema = new Schema(
     {
         inspector: {
@@ -53,6 +89,19 @@ const inspectionSchema = new Schema(
             coordinates: {
                 type: [Number],
                 required: true
+            },
+            pincode: {
+                type: String,
+                default: null,
+                index: true
+            },
+            region: {
+                type: String,
+                default: null
+            },
+            city: {
+                type: String,
+                default: null
             }
         },
         status: {
@@ -64,8 +113,11 @@ const inspectionSchema = new Schema(
         extractedData: {
             mrp_val: { type: Number, default: null },
             unit_symbol: { type: String, default: null },
-            mfg_date: { type: Date, default: null },
-            country_origin: { type: String, default: null }
+            net_quantity: { type: String, default: null },
+            mfg_date: { type: Schema.Types.Mixed, default: null },
+            country_origin: { type: String, default: null },
+            manufacturer_name: { type: String, default: null },
+            commodity_name: { type: String, default: null }
         },
         complianceStatus: {
             type: String,
@@ -73,9 +125,29 @@ const inspectionSchema = new Schema(
             default: "NEEDS_REVIEW",
             index: true
         },
+        violations: [
+            {
+                rule: { type: String, required: true },
+                description: { type: String, default: "" }
+            }
+        ],
         boundingBoxes: [boundingBoxSchema],
         failureReason: {
             type: String,
+            default: null
+        },
+        // ── Section 63 BSA Evidence Fields ───────────────────────────────────
+        // immutable: once written, these fields cannot be overwritten via .save()
+        // Storing the hash top-level enables fast indexed lookups for re-verification
+        evidenceHash: {
+            type: String,
+            default: null,
+            immutable: true,
+            index: true
+        },
+        // Full structured BSA certificate — embedded for self-contained admissibility
+        bsaCertificate: {
+            type: bsaCertificateSchema,
             default: null
         }
     },
@@ -86,4 +158,4 @@ const inspectionSchema = new Schema(
 
 inspectionSchema.index({ location: "2dsphere" });
 
-export const Inspection = mongoose.model("Inspection", inspectionSchema);
+export const Inspection = mongoose.model("Inspection", inspectionSchema);
