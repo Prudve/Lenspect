@@ -4,7 +4,14 @@ import {
     getAllInspections,
     getInspectionById,
     getGeospatialHeatmap,
-    reviewInspection
+    reviewInspection,
+    deleteInspection,
+    retryInspection,
+    getInspectionStats,
+    getNearbyInspections,
+    getMyInspections,
+    getInspectionsByVendor,
+    batchUploadScans
 } from "../controllers/inspection.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { verifyRoles } from "../middlewares/rbac.middleware.js";
@@ -16,25 +23,63 @@ const router = Router();
 // Secure all inspection routes with JWT verification
 router.use(verifyJWT);
 
-// Upload packaging scan (Saves locally via Multer -> Cloudinary -> Queues BullMQ CV job)
+// ─── Stat & Aggregate Routes (no :id param — must come before /:inspectionId) ─
+
+// I3: Aggregate compliance and status counts
+router.route("/stats/summary").get(getInspectionStats);
+
+// I5: Logged-in inspector's own inspections
+router.route("/me").get(getMyInspections);
+
+// ─── Geospatial Routes ────────────────────────────────────────────────────────
+
+// Get GeoJSON FeatureCollection for Leaflet.js heatmap
+router.route("/geospatial/heatmap").get(getGeospatialHeatmap);
+
+// I4: Find inspections within a radius — ?lat=&lng=&radius=&complianceStatus=
+router.route("/geospatial/nearby").get(getNearbyInspections);
+
+// ─── Upload Routes ────────────────────────────────────────────────────────────
+
+// Single scan upload
 router.route("/upload-scan").post(
     verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
     upload.single("image"),
     uploadInspectionScan
 );
 
-// Fetch paginated inspection logs
+// I7: Batch upload — accepts up to 10 images in one request
+router.route("/batch-upload").post(
+    verifyRoles(USER_ROLES.INSPECTOR, USER_ROLES.ADMIN),
+    upload.array("images", 10),
+    batchUploadScans
+);
+
+// ─── Vendor Filter Route ──────────────────────────────────────────────────────
+
+// I6: Filter inspections by vendor/manufacturer name
+router.route("/vendor/:vendorName").get(
+    verifyRoles(USER_ROLES.ADMIN),
+    getInspectionsByVendor
+);
+
+// ─── Paginated List ───────────────────────────────────────────────────────────
+
+// Fetch all inspections with optional filters
 router.route("/").get(getAllInspections);
 
-// Get GeoJSON data points for Leaflet.js dashboard heatmaps
-router.route("/geospatial/heatmap").get(getGeospatialHeatmap);
+// ─── Per-Inspection Routes ────────────────────────────────────────────────────
 
-// Fetch specific scan details or update non-compliant inspection attributes
+// Get details | Manual review update | Delete
 router.route("/:inspectionId")
     .get(getInspectionById)
-    .patch(
-        verifyRoles(USER_ROLES.ADMIN, USER_ROLES.INSPECTOR),
-        reviewInspection
-    );
+    .patch(verifyRoles(USER_ROLES.ADMIN, USER_ROLES.INSPECTOR), reviewInspection)
+    .delete(verifyRoles(USER_ROLES.ADMIN), deleteInspection);
+
+// I2: Re-queue a FAILED inspection
+router.route("/:inspectionId/retry").post(
+    verifyRoles(USER_ROLES.ADMIN, USER_ROLES.INSPECTOR),
+    retryInspection
+);
 
 export default router;

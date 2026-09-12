@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
 import { USER_ROLES } from "../constants.js";
 import jwt from "jsonwebtoken";
+import { Inspection } from "../models/inspection.model.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
@@ -74,6 +75,10 @@ const loginUser = asyncHandler(async (req, res) => {
 
     if (!user) {
         throw new ApiError(404, "User does not exist");
+    }
+
+    if (!password) {
+        throw new ApiError(400, "Password is required");
     }
 
     const isPasswordValid = await user.isPasswordCorrect(password);
@@ -198,6 +203,110 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "Account details updated successfully"));
 });
 
+const getAllUsers = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, role } = req.query;
+
+    const query = {};
+    if (role) query.role = role;
+
+    const users = await User.find(query)
+        .select("-password -refreshToken")
+        .sort({ createdAt: -1 })
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit));
+
+    const total = await User.countDocuments(query);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { users, total, page: Number(page), pages: Math.ceil(total / Number(limit)) },
+            "All users fetched successfully"
+        )
+    );
+});
+
+const getUserById = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select("-password -refreshToken");
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "User details fetched successfully")
+    );
+});
+
+const deleteUser = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+
+    // Prevent an admin from deleting their own account via this route
+    if (req.user._id.toString() === userId) {
+        throw new ApiError(400, "Admins cannot delete their own account through this route");
+    }
+
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "User account deleted successfully")
+    );
+});
+
+const updateUserRole = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    if (!role || !Object.values(USER_ROLES).includes(role)) {
+        throw new ApiError(400, `Invalid role. Must be one of: ${Object.values(USER_ROLES).join(", ")}`);
+    }
+
+    if (req.user._id.toString() === userId) {
+        throw new ApiError(400, "Admins cannot change their own role");
+    }
+
+    const user = await User.findByIdAndUpdate(
+        userId,
+        { $set: { role } },
+        { new: true }
+    ).select("-password -refreshToken");
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, user, `User role updated to ${role} successfully`)
+    );
+});
+
+const getMyInspections = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, complianceStatus, status } = req.query;
+
+    const query = { inspector: req.user._id };
+    if (complianceStatus) query.complianceStatus = complianceStatus;
+    if (status) query.status = status;
+
+    const inspections = await Inspection.find(query)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit));
+
+    const total = await Inspection.countDocuments(query);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { inspections, total, page: Number(page), pages: Math.ceil(total / Number(limit)) },
+            "Your inspections fetched successfully"
+        )
+    );
+});
+
 export {
     registerUser,
     loginUser,
@@ -205,5 +314,10 @@ export {
     refreshAccessToken,
     changeCurrentPassword,
     getCurrentUser,
-    updateAccountDetails
+    updateAccountDetails,
+    getAllUsers,
+    getUserById,
+    deleteUser,
+    updateUserRole,
+    getMyInspections
 };

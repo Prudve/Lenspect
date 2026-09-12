@@ -1,0 +1,38 @@
+import { Router } from "express";
+import {
+    getComplianceTrend,
+    getTopViolations,
+    getInspectorLeaderboard,
+    getOverallComplianceRate
+} from "../controllers/analytics.controller.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { verifyRoles } from "../middlewares/rbac.middleware.js";
+import { USER_ROLES } from "../constants.js";
+
+const router = Router();
+
+// Secure all analytics routes
+router.use(verifyJWT);
+
+// A4: Overall compliance rate — any authenticated user can see this
+router.route("/compliance-rate").get(getOverallComplianceRate);
+
+// A1: Compliance trend over time — ADMIN only — ?days=30
+router.route("/compliance-trend").get(
+    verifyRoles(USER_ROLES.ADMIN),
+    getComplianceTrend
+);
+
+// A2: Most frequently flagged violations — ADMIN only — ?limit=10
+router.route("/top-violations").get(
+    verifyRoles(USER_ROLES.ADMIN),
+    getTopViolations
+);
+
+// A3: Inspector leaderboard ranked by scan count — ADMIN only — ?limit=10
+router.route("/inspector-leaderboard").get(
+    verifyRoles(USER_ROLES.ADMIN),
+    getInspectorLeaderboard
+);
+
+export default router;

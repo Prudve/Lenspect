@@ -112,9 +112,113 @@ const downloadNoticePDF = asyncHandler(async (req, res) => {
     return res.redirect(notice.pdfUrl);
 });
 
+const cancelNotice = asyncHandler(async (req, res) => {
+    const { noticeId } = req.params;
+
+    const notice = await Notice.findById(noticeId);
+    if (!notice) {
+        throw new ApiError(404, "Notice not found");
+    }
+
+    if (notice.status === "CANCELLED") {
+        throw new ApiError(400, "This notice is already cancelled");
+    }
+
+    notice.status = "CANCELLED";
+    await notice.save();
+
+    return res.status(200).json(
+        new ApiResponse(200, notice, "Notice cancelled successfully")
+    );
+});
+
+const getNoticeByInspection = asyncHandler(async (req, res) => {
+    const { inspectionId } = req.params;
+
+    // Verify the inspection exists first
+    const inspection = await Inspection.findById(inspectionId);
+    if (!inspection) {
+        throw new ApiError(404, "Inspection record not found");
+    }
+
+    const notice = await Notice.findOne({ inspection: inspectionId })
+        .populate("issuedBy", "fullName email username")
+        .populate("inspection");
+
+    if (!notice) {
+        throw new ApiError(404, "No notice found for this inspection");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, notice, "Notice for inspection fetched successfully")
+    );
+});
+
+const getNoticeStats = asyncHandler(async (req, res) => {
+    const [stats] = await Notice.aggregate([
+        {
+            $facet: {
+                byStatus: [
+                    { $group: { _id: "$status", count: { $sum: 1 } } }
+                ],
+                total: [
+                    { $count: "count" }
+                ]
+            }
+        }
+    ]);
+
+    if (!stats) {
+        return res.status(200).json(
+            new ApiResponse(200, { total: 0, ISSUED: 0, CANCELLED: 0, DRAFT: 0 }, "No notices found")
+        );
+    }
+
+    const statusMap = {};
+    stats.byStatus.forEach(({ _id, count }) => { statusMap[_id] = count; });
+
+    const summary = {
+        total: stats.total[0]?.count || 0,
+        ISSUED: statusMap.ISSUED || 0,
+        CANCELLED: statusMap.CANCELLED || 0,
+        DRAFT: statusMap.DRAFT || 0
+    };
+
+    return res.status(200).json(
+        new ApiResponse(200, summary, "Notice statistics fetched successfully")
+    );
+});
+
+const getMyNotices = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, status } = req.query;
+
+    const query = { issuedBy: req.user._id };
+    if (status) query.status = status;
+
+    const notices = await Notice.find(query)
+        .populate("inspection")
+        .sort({ createdAt: -1 })
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit));
+
+    const total = await Notice.countDocuments(query);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { notices, total, page: Number(page), pages: Math.ceil(total / Number(limit)) },
+            "Your notices fetched successfully"
+        )
+    );
+});
+
 export {
     generateNotice,
     getAllNotices,
     getNoticeById,
-    downloadNoticePDF
+    downloadNoticePDF,
+    cancelNotice,
+    getNoticeByInspection,
+    getNoticeStats,
+    getMyNotices
 };

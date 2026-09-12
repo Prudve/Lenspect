@@ -1,12 +1,14 @@
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import express from 'express';
+import express from "express";
 
 import userRouter from "./routes/user.routes.js";
 import inspectionRouter from "./routes/inspection.routes.js";
 import noticeRouter from "./routes/notice.routes.js";
+import analyticsRouter from "./routes/analytics.routes.js";
+import queueRouter from "./routes/queue.routes.js";
 
-const app=express();
+const app = express();
 
 app.use(cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
@@ -15,13 +17,14 @@ app.use(cors({
 
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
-
 app.use(express.static("public"));
 app.use(cookieParser());
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/inspections", inspectionRouter);
 app.use("/api/v1/notices", noticeRouter);
+app.use("/api/v1/analytics", analyticsRouter);
+app.use("/api/v1/queue", queueRouter);
 
 app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500;
