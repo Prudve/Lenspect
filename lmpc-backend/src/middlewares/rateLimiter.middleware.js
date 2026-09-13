@@ -3,8 +3,8 @@ import { ApiError } from "../utils/ApiError.js";
 
 // Global rate limiter for standard API routes
 export const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    limit: 100, // Limit each IP to 100 requests per windowMs
+    windowMs: 60 * 60 * 1000, // 15 minutes
+    limit: 1000, // Limit each IP to 100 requests per windowMs
     standardHeaders: "draft-7",
     legacyHeaders: false,
     handler: (req, res, next, options) => {
@@ -31,8 +31,8 @@ export const authLimiter = rateLimit({
 
 // Rate limiter for file upload endpoints
 export const uploadLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20, // Limit each IP to 20 uploads per 15 minutes
+    windowMs: 60 * 60 * 1000,
+    limit: 1000, // Limit each IP to 20 uploads per 15 minutes
     standardHeaders: "draft-7",
     legacyHeaders: false,
     handler: (req, res, next, options) => {
