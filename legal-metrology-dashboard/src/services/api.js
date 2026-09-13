@@ -1,110 +1,76 @@
-/**
- * Centralized API client for Legal Metrology Dashboard
- * Manages JWT Bearer tokens, base URLs, and response handling.
- */
+import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+// Create Axios instance with base URL proxying to backend
+const api = axios.create({
+  baseURL: '/api/v1',
+  withCredentials: true, // Required to send/receive HTTP-only cookies
+});
 
-class ApiClient {
-  constructor(baseUrl) {
-    this.baseUrl = baseUrl;
-  }
-
-  getToken() {
-    try {
-      return localStorage.getItem('lmpc_access_token');
-    } catch {
-      return null;
+// Request interceptor to attach JWT token if it exists in local storage
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('lmpc_access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-  }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-  setToken(token) {
-    try {
-      if (token) {
-        localStorage.setItem('lmpc_access_token', token);
-      } else {
-        localStorage.removeItem('lmpc_access_token');
-      }
-    } catch (e) {
-      console.error('Failed to store access token:', e);
-    }
-  }
-
-  clearAuth() {
-    try {
+// Response interceptor for generic error handling
+api.interceptors.response.use(
+  (response) => {
+    // Our backend sends standardized ApiResponse with `data` inside the root object.
+    return response.data;
+  },
+  (error) => {
+    if (error.response?.status === 401) {
       localStorage.removeItem('lmpc_access_token');
       localStorage.removeItem('lmpc_user');
-    } catch (e) {
-      console.error('Failed to clear auth state:', e);
-    }
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-    const token = this.getToken();
-
-    const headers = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...options.headers,
-    };
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const config = {
-      ...options,
-      headers,
-    };
-
-    const response = await fetch(url, config);
-
-    // Handle 401 Unauthorized globally
-    if (response.status === 401) {
-      this.clearAuth();
-      // If not already on login page, dispatch auth failure event
       if (!window.location.pathname.includes('/login')) {
         window.dispatchEvent(new CustomEvent('lmpc:unauthorized'));
       }
     }
 
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      const error = new Error(data?.message || `HTTP ${response.status}: Request failed`);
-      error.status = response.status;
-      error.data = data;
-      throw error;
-    }
-
-    return data;
+    const customError = {
+      message: error.response?.data?.message || 'An unexpected error occurred',
+      statusCode: error.response?.data?.statusCode || error.response?.status || 500,
+      errors: error.response?.data?.errors || [],
+      success: false,
+    };
+    return Promise.reject(customError);
   }
+);
 
-  get(endpoint, options = {}) {
-    return this.request(endpoint, { ...options, method: 'GET' });
-  }
+// Users / Auth Service
+export const authService = {
+  login: (credentials) => api.post('/users/login', credentials),
+  logout: () => api.post('/users/logout'),
+  getCurrentUser: () => api.get('/users/current-user'),
+};
 
-  post(endpoint, body, options = {}) {
-    return this.request(endpoint, {
-      ...options,
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  }
+// Analytics Service
+export const analyticsService = {
+  getComplianceRate: () => api.get('/analytics/compliance-rate'),
+  getComplianceTrend: () => api.get('/analytics/compliance-trend'),
+  getTopViolations: () => api.get('/analytics/top-violations'),
+  getInspectorLeaderboard: (limit = 50) => api.get(`/analytics/inspector-leaderboard?limit=${limit}`),
+};
 
-  patch(endpoint, body, options = {}) {
-    return this.request(endpoint, {
-      ...options,
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-  }
+// Inspections Service
+export const inspectionService = {
+  getInspections: (page = 1, limit = 50) => api.get(`/inspections/?page=${page}&limit=${limit}`),
+  getInspectionById: (id) => api.get(`/inspections/${id}`),
+  updateInspection: (id, data) => api.patch(`/inspections/${id}`, data),
+};
 
-  delete(endpoint, options = {}) {
-    return this.request(endpoint, { ...options, method: 'DELETE' });
-  }
-}
+// Notices Service
+export const noticeService = {
+  getNotices: (page = 1, limit = 50) => api.get(`/notices/?page=${page}&limit=${limit}`),
+  getNoticesByInspection: (inspectionId) => api.get(`/notices/inspection/${inspectionId}`),
+  generateNotice: (inspectionId, data = {}) => api.post(`/notices/generate/${inspectionId}`, data),
+  downloadNotice: (id) => api.get(`/notices/${id}/download`, { responseType: 'blob' }),
+};
 
-export const api = new ApiClient(API_BASE_URL);
 export default api;

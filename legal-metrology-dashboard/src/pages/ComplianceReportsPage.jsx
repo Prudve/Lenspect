@@ -5,109 +5,161 @@ import {
   TrendingUp,
   AlertTriangle,
   CheckCircle2,
-  Users,
-  Building2
+  Users
 } from 'lucide-react';
 
-import {
-  REPORT_SUMMARY,
-  COMPLIANCE_TREND_DATA,
-  VIOLATION_CATEGORY_DATA,
-  INSPECTOR_REPORT_DATA,
-  MANUFACTURER_REPORT_DATA,
-  REPORT_PERIODS
-} from '../data/reportsMockData';
-
+import api from '../services/api';
 import './ComplianceReportsPage.css';
 
 function ComplianceReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('Last 7 Days');
+  const [loading, setLoading] = useState(true);
 
-  const trendTotal = useMemo(
-    () =>
-      COMPLIANCE_TREND_DATA.reduce(
-        (total, item) => total + item.inspections,
-        0
-      ),
-    []
-  );
-
-  const trendCompliant = useMemo(
-    () =>
-      COMPLIANCE_TREND_DATA.reduce(
-        (total, item) => total + item.compliant,
-        0
-      ),
-    []
-  );
-
-  const trendRate = ((trendCompliant / trendTotal) * 100).toFixed(1);
-  const handleExport = () => {
-  const rows = [
-    ['Legal Metrology Compliance Report'],
-    ['Report Period', selectedPeriod],
-    [],
-    ['Summary'],
-    ['Total Inspections', REPORT_SUMMARY.totalInspections],
-    ['Compliant', REPORT_SUMMARY.compliant],
-    ['Non-Compliant', REPORT_SUMMARY.nonCompliant],
-    ['Compliance Rate', `${REPORT_SUMMARY.complianceRate}%`],
-    ['Active Inspectors', REPORT_SUMMARY.activeInspectors],
-    [],
-    ['Violation Category', 'Count', 'Percentage'],
-    ...VIOLATION_CATEGORY_DATA.map(item => [
-      item.category,
-      item.count,
-      `${item.percentage}%`
-    ]),
-    [],
-    ['Inspector Performance'],
-    ['Inspector ID', 'Inspector Name', 'Inspections', 'Compliant', 'Non-Compliant', 'Compliance Rate'],
-    ...INSPECTOR_REPORT_DATA.map(item => [
-      item.id,
-      item.name,
-      item.inspections,
-      item.compliant,
-      item.nonCompliant,
-      `${item.complianceRate}%`
-    ]),
-    [],
-    ['Manufacturer Compliance Summary'],
-    ['Manufacturer', 'Inspections', 'Violations', 'Status'],
-    ...MANUFACTURER_REPORT_DATA.map(item => [
-      item.name,
-      item.inspections,
-      item.violations,
-      item.status
-    ])
-  ];
-
-  const csvContent = rows
-    .map(row =>
-      row
-        .map(value => `"${String(value).replace(/"/g, '""')}"`)
-        .join(',')
-    )
-    .join('\n');
-
-  const blob = new Blob([csvContent], {
-    type: 'text/csv;charset=utf-8;'
+  // States for analytics data
+  const [reportSummary, setReportSummary] = useState({
+    totalInspections: 0,
+    compliant: 0,
+    nonCompliant: 0,
+    complianceRate: 0,
+    activeInspectors: 0
   });
+  const [trendData, setTrendData] = useState([]);
+  const [violationCategories, setViolationCategories] = useState([]);
+  const [inspectorReport, setInspectorReport] = useState([]);
 
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const REPORT_PERIODS = ['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Year to Date'];
 
-  link.href = url;
-  link.download = `legal-metrology-report-${selectedPeriod
-    .toLowerCase()
-    .replace(/\s+/g, '-')}.csv`;
+  React.useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        let days = 7;
+        if (selectedPeriod === 'Last 30 Days') days = 30;
+        else if (selectedPeriod === 'Last 90 Days') days = 90;
+        else if (selectedPeriod === 'Year to Date') days = 365;
 
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+        const [rateRes, trendRes, topVioRes, leaderRes] = await Promise.all([
+          api.get('/analytics/compliance-rate').catch(() => ({ data: {} })),
+          api.get(`/analytics/compliance-trend?days=${days}`).catch(() => ({ data: [] })),
+          api.get('/analytics/top-violations').catch(() => ({ data: [] })),
+          api.get('/analytics/inspector-leaderboard?limit=10').catch(() => ({ data: [] }))
+        ]);
 
-  URL.revokeObjectURL(url);
-};
+        const rateData = rateRes?.data || rateRes || {};
+        setReportSummary({
+          totalInspections: rateData.total || 0,
+          compliant: rateData.compliant || 0,
+          nonCompliant: rateData.nonCompliant || 0,
+          complianceRate: rateData.complianceRate || 0,
+          activeInspectors: leaderRes?.data?.length || leaderRes?.length || 0
+        });
+
+        const trendArray = trendRes?.data || trendRes || [];
+        setTrendData(trendArray.map(item => ({
+          date: item.date,
+          inspections: (item.COMPLIANT || 0) + (item.NON_COMPLIANT || 0) + (item.NEEDS_REVIEW || 0),
+          compliant: item.COMPLIANT || 0
+        })));
+
+        const viosArray = topVioRes?.data || topVioRes || [];
+        const totalVios = viosArray.reduce((acc, v) => acc + (v.count || 0), 0);
+        setViolationCategories(viosArray.map(v => ({
+          category: v.rule,
+          count: v.count,
+          percentage: totalVios > 0 ? Math.round((v.count / totalVios) * 100) : 0
+        })));
+
+        const leaderArray = leaderRes?.data || leaderRes || [];
+        setInspectorReport(leaderArray.map(l => {
+          const t = l.totalScans || 0;
+          const c = l.compliantScans || 0;
+          return {
+            id: l.inspector?._id || 'ID',
+            name: l.inspector?.fullName || l.inspector?.username || 'Unknown',
+            inspections: t,
+            compliant: c,
+            nonCompliant: l.nonCompliantScans || 0,
+            complianceRate: t > 0 ? Math.round((c / t) * 100) : 0
+          };
+        }));
+      } catch (e) {
+        console.error("Failed to fetch reports", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [selectedPeriod]);
+
+  const trendTotal = useMemo(() => trendData.reduce((total, item) => total + item.inspections, 0), [trendData]);
+  const trendCompliant = useMemo(() => trendData.reduce((total, item) => total + item.compliant, 0), [trendData]);
+  const trendRate = trendTotal > 0 ? ((trendCompliant / trendTotal) * 100).toFixed(1) : "0.0";
+  const handleExport = () => {
+    const rows = [
+      ['Legal Metrology Compliance Report'],
+      ['Report Period', selectedPeriod],
+      [],
+      ['Summary'],
+      ['Total Inspections', reportSummary.totalInspections],
+      ['Compliant', reportSummary.compliant],
+      ['Non-Compliant', reportSummary.nonCompliant],
+      ['Compliance Rate', `${reportSummary.complianceRate}%`],
+      ['Active Inspectors', reportSummary.activeInspectors],
+      [],
+      ['Violation Category', 'Count', 'Percentage'],
+      ...violationCategories.map(item => [
+        item.category,
+        item.count,
+        `${item.percentage}%`
+      ]),
+      [],
+      ['Inspector Performance'],
+      ['Inspector ID', 'Inspector Name', 'Inspections', 'Compliant', 'Non-Compliant', 'Compliance Rate'],
+      ...inspectorReport.map(item => [
+        item.id,
+        item.name,
+        item.inspections,
+        item.compliant,
+        item.nonCompliant,
+        `${item.complianceRate}%`
+      ]),
+      [],
+      ['Manufacturer Compliance Summary'],
+      ['Manufacturer', 'Inspections', 'Violations', 'Status'],
+      ...MANUFACTURER_REPORT_DATA.map(item => [
+        item.name,
+        item.inspections,
+        item.violations,
+        item.status
+      ])
+    ];
+
+    const csvContent = rows
+      .map(row =>
+        row
+          .map(value => `"${String(value).replace(/"/g, '""')}"`)
+          .join(',')
+      )
+      .join('\n');
+
+    const blob = new Blob([csvContent], {
+      type: 'text/csv;charset=utf-8;'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `legal-metrology-report-${selectedPeriod
+      .toLowerCase()
+      .replace(/\s+/g, '-')}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="reports-page">
@@ -155,7 +207,7 @@ function ComplianceReportsPage() {
           </div>
           <div>
             <span>Total Inspections</span>
-            <strong>{REPORT_SUMMARY.totalInspections.toLocaleString()}</strong>
+            <strong>{reportSummary.totalInspections.toLocaleString()}</strong>
             <small>All recorded inspections</small>
           </div>
         </div>
@@ -166,7 +218,7 @@ function ComplianceReportsPage() {
           </div>
           <div>
             <span>Compliant</span>
-            <strong>{REPORT_SUMMARY.compliant.toLocaleString()}</strong>
+            <strong>{reportSummary.compliant.toLocaleString()}</strong>
             <small>Packages meeting requirements</small>
           </div>
         </div>
@@ -177,7 +229,7 @@ function ComplianceReportsPage() {
           </div>
           <div>
             <span>Non-Compliant</span>
-            <strong>{REPORT_SUMMARY.nonCompliant.toLocaleString()}</strong>
+            <strong>{reportSummary.nonCompliant.toLocaleString()}</strong>
             <small>Inspections requiring attention</small>
           </div>
         </div>
@@ -188,7 +240,7 @@ function ComplianceReportsPage() {
           </div>
           <div>
             <span>Compliance Rate</span>
-            <strong>{REPORT_SUMMARY.complianceRate}%</strong>
+            <strong>{reportSummary.complianceRate}%</strong>
             <small>Overall recorded rate</small>
           </div>
         </div>
@@ -199,7 +251,7 @@ function ComplianceReportsPage() {
           </div>
           <div>
             <span>Active Inspectors</span>
-            <strong>{REPORT_SUMMARY.activeInspectors}</strong>
+            <strong>{reportSummary.activeInspectors}</strong>
             <small>Currently assigned officers</small>
           </div>
         </div>
@@ -232,7 +284,7 @@ function ComplianceReportsPage() {
               <div className="chart-grid-line line-4" />
 
               <div className="bars">
-                {COMPLIANCE_TREND_DATA.map((item) => {
+                {trendData.map((item) => {
                   const totalHeight = (item.inspections / 220) * 100;
                   const compliantHeight =
                     (item.compliant / item.inspections) * totalHeight;
@@ -280,7 +332,7 @@ function ComplianceReportsPage() {
           </div>
 
           <div className="violation-distribution">
-            {VIOLATION_CATEGORY_DATA.map((item) => (
+            {violationCategories.map((item) => (
               <div className="distribution-row" key={item.category}>
                 <div className="distribution-info">
                   <span>{item.category}</span>
@@ -328,7 +380,7 @@ function ComplianceReportsPage() {
             </thead>
 
             <tbody>
-              {INSPECTOR_REPORT_DATA.map((inspector) => (
+              {inspectorReport.map((inspector) => (
                 <tr key={inspector.id}>
                   <td>
                     <div className="person-cell">
@@ -371,56 +423,6 @@ function ComplianceReportsPage() {
         </div>
       </section>
 
-      {/* Manufacturer Summary */}
-      <section className="report-panel full-width-panel">
-        <div className="report-panel-header">
-          <div>
-            <h3>Manufacturer Compliance Summary</h3>
-            <p>
-              Manufacturers with notable inspection and violation activity.
-            </p>
-          </div>
-        </div>
-
-        <div className="manufacturer-grid">
-          {MANUFACTURER_REPORT_DATA.map((manufacturer) => (
-            <div className="manufacturer-card" key={manufacturer.name}>
-              <div className="manufacturer-icon">
-                <Building2 size={18} />
-              </div>
-
-              <div className="manufacturer-content">
-                <strong>{manufacturer.name}</strong>
-
-                <div className="manufacturer-stats">
-                  <span>
-                    Inspections <b>{manufacturer.inspections}</b>
-                  </span>
-                  <span>
-                    Violations <b>{manufacturer.violations}</b>
-                  </span>
-                </div>
-
-                <span
-                  className={`manufacturer-status status-${manufacturer.status
-                    .toLowerCase()
-                    .replace(/\s+/g, '-')}`}
-                >
-                  {manufacturer.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="reports-demo-note">
-        <FileBarChart size={15} />
-        <span>
-          Report values shown above are prototype data for the SIH dashboard.
-          Live values will be populated from the inspection backend.
-        </span>
-      </div>
     </div>
   );
 }

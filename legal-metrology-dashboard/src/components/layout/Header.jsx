@@ -1,13 +1,13 @@
 import React from 'react';
-import { Bell, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import './Header.css';
 
 function Header({ title, subtitle }) {
   const { user, logout } = useAuth();
 
-  const fullName = user?.fullName || 'Senior Enforcement Officer';
-  const roleName = user?.role === 'ADMIN' ? 'Senior Legal Metrology Officer' : 'Field Inspector';
+  const fullName = user?.fullName || '';
+  const roleName = user?.role || '';
   const initials = fullName
     .split(' ')
     .filter(Boolean)
@@ -31,16 +31,7 @@ function Header({ title, subtitle }) {
           <span>National Enforcement Grid</span>
         </div>
 
-        {/* Alerts / Notifications */}
-        <button 
-          className="notification-btn" 
-          type="button" 
-          title="Hotspot alerts requiring review"
-          aria-label="Compliance notifications"
-        >
-          <Bell size={18} />
-          <span className="notification-badge">5</span>
-        </button>
+
 
         <div className="header-divider" />
 

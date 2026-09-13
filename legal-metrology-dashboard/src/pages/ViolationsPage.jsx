@@ -8,12 +8,7 @@ import {
   X
 } from 'lucide-react';
 
-import {
-  VIOLATIONS_DATA,
-  VIOLATION_TYPES,
-  VIOLATION_SEVERITIES,
-  VIOLATION_STATUSES
-} from '../data/violationsMockData';
+import api from '../services/api';
 
 import './ViolationsPage.css';
 
@@ -22,9 +17,45 @@ function ViolationsPage() {
   const [selectedType, setSelectedType] = useState('All');
   const [selectedSeverity, setSelectedSeverity] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [violationsData, setViolationsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Derive filter options dynamically from data or keep static (we'll keep some static for UI)
+  const VIOLATION_TYPES = ['All', 'Missing MRP', 'Unit Sale Price Omission', 'Net Quantity Format', 'Missing Manufacturer', 'Missing Pack Date'];
+  const VIOLATION_SEVERITIES = ['All', 'Critical', 'High', 'Medium', 'Low'];
+  const VIOLATION_STATUSES = ['All', 'Open', 'Under Review', 'Escalated', 'Resolved'];
+
+  React.useEffect(() => {
+    const fetchNotices = async () => {
+      try {
+        const response = await api.get('/notices/?limit=200&page=1');
+        const notices = response?.data?.notices || response?.notices || [];
+
+        const mappedData = notices.map(notice => ({
+          id: notice._id,
+          inspectionId: notice.inspection?._id || 'Unknown',
+          productName: notice.inspection?.extractedData?.commodity_name || 'Unknown Product',
+          manufacturer: notice.inspection?.extractedData?.manufacturer_name || 'Unknown Manufacturer',
+          inspector: notice.issuer?.fullName || notice.issuer?.username || 'System',
+          violationType: 'Rule Violation',
+          description: notice.notes || 'Notice generated',
+          ruleReference: 'PC Rules, 2011',
+          severity: 'High',
+          status: notice.status === 'DRAFT' ? 'Under Review' : notice.status === 'ISSUED' ? 'Open' : 'Resolved',
+          inspectionDate: notice.createdAt
+        }));
+        setViolationsData(mappedData);
+      } catch (err) {
+        console.error('Failed to fetch violations', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchNotices();
+  }, []);
 
   const filteredViolations = useMemo(() => {
-    return VIOLATIONS_DATA.filter((violation) => {
+    return violationsData.filter((violation) => {
       const query = searchTerm.toLowerCase().trim();
 
       if (query) {
@@ -64,6 +95,7 @@ function ViolationsPage() {
       return true;
     });
   }, [
+    violationsData,
     searchTerm,
     selectedType,
     selectedSeverity,
@@ -72,25 +104,25 @@ function ViolationsPage() {
 
   const summary = useMemo(() => {
     return {
-      total: VIOLATIONS_DATA.length,
+      total: violationsData.length,
 
-      open: VIOLATIONS_DATA.filter(
+      open: violationsData.filter(
         (item) => item.status === 'Open'
       ).length,
 
-      underReview: VIOLATIONS_DATA.filter(
+      underReview: violationsData.filter(
         (item) => item.status === 'Under Review'
       ).length,
 
-      escalated: VIOLATIONS_DATA.filter(
+      escalated: violationsData.filter(
         (item) => item.status === 'Escalated'
       ).length,
 
-      resolved: VIOLATIONS_DATA.filter(
+      resolved: violationsData.filter(
         (item) => item.status === 'Resolved'
       ).length
     };
-  }, []);
+  }, [violationsData]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -119,7 +151,7 @@ function ViolationsPage() {
         </div>
 
         <div className="violations-count">
-          {filteredViolations.length} of {VIOLATIONS_DATA.length} records
+          {filteredViolations.length} of {violationsData.length} records
         </div>
       </div>
 

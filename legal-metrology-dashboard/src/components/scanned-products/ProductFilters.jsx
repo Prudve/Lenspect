@@ -1,7 +1,9 @@
 import React from 'react';
 import { Search, X, Filter, RotateCcw } from 'lucide-react';
-import { COMMODITY_CATEGORIES, COMPLIANCE_STATUSES } from '../../data/scannedProductsMockData';
 import './ProductFilters.css';
+
+const COMMODITY_CATEGORIES = ['All', 'Food', 'FMCG', 'Electronics', 'Pharma', 'Other'];
+const COMPLIANCE_STATUSES = ['All', 'Compliant', 'Non-Compliant', 'Under Review'];
 
 function ProductFilters({
   searchTerm,

@@ -3,6 +3,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Inspection } from "../models/inspection.model.js";
 import { Notice } from "../models/notice.model.js";
 import { User } from "../models/user.model.js";
+import { USER_ROLES } from "../constants.js";
 
 // A1: Inspections over time, grouped by day — with compliant vs non-compliant split
 const getComplianceTrend = asyncHandler(async (req, res) => {
@@ -14,7 +15,6 @@ const getComplianceTrend = asyncHandler(async (req, res) => {
     const trend = await Inspection.aggregate([
         {
             $match: {
-                status: "COMPLETED",
                 createdAt: { $gte: since }
             }
         },
@@ -93,42 +93,50 @@ const getTopViolations = asyncHandler(async (req, res) => {
 const getInspectorLeaderboard = asyncHandler(async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
-    const leaderboard = await Inspection.aggregate([
+    const leaderboard = await User.aggregate([
+        { $match: { role: USER_ROLES.INSPECTOR } },
         {
-            $group: {
-                _id: "$inspector",
-                totalScans: { $sum: 1 },
+            $lookup: {
+                from: "inspections",
+                localField: "_id",
+                foreignField: "inspector",
+                as: "inspections"
+            }
+        },
+        {
+            $project: {
+                inspector: {
+                    _id: "$_id",
+                    fullName: "$fullName",
+                    email: "$email",
+                    username: "$username"
+                },
+                totalScans: { $size: "$inspections" },
                 compliantScans: {
-                    $sum: { $cond: [{ $eq: ["$complianceStatus", "COMPLIANT"] }, 1, 0] }
+                    $size: {
+                        $filter: {
+                            input: "$inspections",
+                            as: "ins",
+                            cond: { $eq: ["$$ins.complianceStatus", "COMPLIANT"] }
+                        }
+                    }
                 },
                 nonCompliantScans: {
-                    $sum: { $cond: [{ $eq: ["$complianceStatus", "NON_COMPLIANT"] }, 1, 0] }
+                    $size: {
+                        $filter: {
+                            input: "$inspections",
+                            as: "ins",
+                            cond: { $eq: ["$$ins.complianceStatus", "NON_COMPLIANT"] }
+                        }
+                    }
                 }
             }
         },
         { $sort: { totalScans: -1 } },
         { $limit: limit },
         {
-            $lookup: {
-                from: "users",
-                localField: "_id",
-                foreignField: "_id",
-                as: "inspector"
-            }
-        },
-        { $unwind: "$inspector" },
-        {
             $project: {
-                _id: 0,
-                inspector: {
-                    _id: "$inspector._id",
-                    fullName: "$inspector.fullName",
-                    email: "$inspector.email",
-                    username: "$inspector.username"
-                },
-                totalScans: 1,
-                compliantScans: 1,
-                nonCompliantScans: 1
+                _id: 0
             }
         }
     ]);
@@ -141,7 +149,6 @@ const getInspectorLeaderboard = asyncHandler(async (req, res) => {
 // A4: Overall compliance rate across all completed inspections
 const getOverallComplianceRate = asyncHandler(async (req, res) => {
     const [result] = await Inspection.aggregate([
-        { $match: { status: "COMPLETED" } },
         {
             $group: {
                 _id: null,

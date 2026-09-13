@@ -173,10 +173,10 @@
   text-overflow: ellipsis;
 }
 
-/* 3. Middle Grid: Trend (60%) + Violation Summary (40%) */
+/* 3. Middle Grid: Trend (100%) */
 .middle-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -198,10 +198,10 @@
   }
 }
 
-/* 4. Bottom Grid: Recent Inspections + Recent Violations */
+/* 4. Bottom Grid: Recent Inspections */
 .bottom-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1.25rem;
   align-items: start;
 }

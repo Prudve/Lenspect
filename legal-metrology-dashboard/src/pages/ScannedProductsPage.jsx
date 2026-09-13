@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ProductFilters from '../components/scanned-products/ProductFilters';
 import ProductsTable from '../components/scanned-products/ProductsTable';
 import Pagination from '../components/scanned-products/Pagination';
 import ProductDetailsPage from './ProductDetailsPage';
-import { SCANNED_PRODUCTS_DATA } from '../data/scannedProductsMockData';
-import { Package, CheckCircle2, AlertOctagon, Clock } from 'lucide-react';
+import { Package, CheckCircle2, AlertOctagon, Clock, Loader2 } from 'lucide-react';
+import api from '../services/api';
 import './ScannedProductsPage.css';
 
 const ITEMS_PER_PAGE = 8;
@@ -17,9 +17,61 @@ function ScannedProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
+  const [productsData, setProductsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch from the real backend API
+        const response = await api.get('/inspections?limit=500&page=1');
+
+        if (response.success && response.data && response.data.inspections) {
+          // Map backend Inspection model to frontend table format
+          const mappedData = response.data.inspections.map((item) => {
+            const dateObj = new Date(item.createdAt);
+            const displayDate = dateObj.toLocaleDateString('en-GB', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', hour12: true
+            });
+
+            // Map complianceStatus (COMPLIANT, NON_COMPLIANT, NEEDS_REVIEW) to UI status
+            let uiStatus = 'Under Review';
+            if (item.complianceStatus === 'COMPLIANT') uiStatus = 'Compliant';
+            if (item.complianceStatus === 'NON_COMPLIANT') uiStatus = 'Non-Compliant';
+
+            return {
+              inspectionId: item._id, // Using Mongo ID directly
+              productName: item.extractedData?.commodity_name || 'Unknown Product',
+              category: 'Other', // Model doesn't have a specific category
+              manufacturer: item.extractedData?.manufacturer_name || item.extractedData?.country_origin || 'Unknown Manufacturer',
+              inspector: item.inspector?.fullName || item.inspector?.username || 'Unknown Inspector',
+              inspectorId: item.inspector?._id || 'Unknown',
+              inspectionDate: item.createdAt,
+              displayDate: displayDate,
+              status: uiStatus,
+              violationCount: item.violations ? item.violations.length : 0,
+              mrp: item.extractedData?.mrp_val ? `₹${item.extractedData.mrp_val}` : 'N/A',
+              netQuantity: item.extractedData?.net_quantity && item.extractedData?.unit_symbol
+                ? `${item.extractedData.net_quantity} ${item.extractedData.unit_symbol}`
+                : 'N/A',
+              batchNumber: 'N/A' // Not present in the inspection model
+            };
+          });
+          setProductsData(mappedData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch inspections', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   // Filter products based on search and filters
   const filteredProducts = useMemo(() => {
-    return SCANNED_PRODUCTS_DATA.filter((item) => {
+    return productsData.filter((item) => {
       // 1. Search filter
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
@@ -75,6 +127,7 @@ function ScannedProductsPage() {
       return true;
     });
   }, [
+    productsData,
     searchTerm,
     selectedStatus,
     selectedCategory,
@@ -128,17 +181,17 @@ function ScannedProductsPage() {
 
   // Aggregate stats for the compact summary strip
   const summaryCounts = useMemo(() => {
-    const total = SCANNED_PRODUCTS_DATA.length;
+    const total = productsData.length;
 
-    const compliant = SCANNED_PRODUCTS_DATA.filter(
+    const compliant = productsData.filter(
       (i) => i.status === 'Compliant'
     ).length;
 
-    const nonCompliant = SCANNED_PRODUCTS_DATA.filter(
+    const nonCompliant = productsData.filter(
       (i) => i.status === 'Non-Compliant'
     ).length;
 
-    const underReview = SCANNED_PRODUCTS_DATA.filter(
+    const underReview = productsData.filter(
       (i) => i.status === 'Under Review'
     ).length;
 
@@ -148,7 +201,16 @@ function ScannedProductsPage() {
       nonCompliant,
       underReview
     };
-  }, []);
+  }, [productsData]);
+
+  if (loading) {
+    return (
+      <div className="scanned-products-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Loader2 className="animate-spin" size={32} />
+        <span style={{ marginLeft: '12px' }}>Loading Scanned Products...</span>
+      </div>
+    );
+  }
 
   // Show the actual Step 5 Product Details page
   if (selectedProduct) {
@@ -176,7 +238,7 @@ function ScannedProductsPage() {
         <div className="matched-counter-pill">
           <span>
             Displaying <strong>{totalItems}</strong> of{' '}
-            <strong>{SCANNED_PRODUCTS_DATA.length}</strong> inspections
+            <strong>{productsData.length}</strong> inspections
           </span>
         </div>
       </div>

@@ -19,7 +19,6 @@ import ComplianceReportsPage from './pages/ComplianceReportsPage';
 import InspectionHistoryPage from './pages/InspectionHistoryPage';
 import ProductDetailsPage from './pages/ProductDetailsPage';
 import ViolationHeatmap from './components/dashboard/ViolationHeatmap';
-import { INSPECTION_HISTORY_DATA } from './data/inspectionHistoryMockData';
 
 import {
   LayoutDashboard,
@@ -110,22 +109,9 @@ function ProductDetailsWrapper() {
   const { inspectionId } = useParams();
   const navigate = useNavigate();
 
-  const inspection = INSPECTION_HISTORY_DATA.find((item) => item.id === inspectionId) || {
-    id: inspectionId,
-    product: 'Packaged Commodity',
-    category: 'Food',
-    inspector: 'Anil Kumar',
-    inspectorId: 'LM-701',
-    date: '12 Sep 2026, 10:15 AM',
-    status: 'Non-Compliant'
-  };
-
   return (
     <ProductDetailsPage
-      product={{
-        ...inspection,
-        inspectionId: inspection.id
-      }}
+      product={{ inspectionId }}
       onBack={() => navigate('/inspection-history')}
     />
   );

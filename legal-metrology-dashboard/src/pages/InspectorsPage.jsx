@@ -7,21 +7,59 @@ import {
   UserCheck,
   MapPin
 } from 'lucide-react';
-import {
-  INSPECTORS_DATA,
-  INSPECTOR_DIVISIONS,
-  INSPECTOR_STATUSES
-} from '../data/inspectorsMockData';
-import { getInspectorDetail } from '../data/inspectorDetailsMockData';
+import api from '../services/api';
 import './InspectorsPage.css';
+
 function InspectorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedInspector, setSelectedInspector] = useState(null);
+  const [inspectorsData, setInspectorsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const INSPECTOR_DIVISIONS = ['All', 'North Division', 'South Division', 'East Division', 'West Division', 'Central Division'];
+  const INSPECTOR_STATUSES = ['All', 'Active', 'On Leave', 'Suspended'];
+
+  React.useEffect(() => {
+    const fetchInspectors = async () => {
+      try {
+        const response = await api.get('/analytics/inspector-leaderboard?limit=100');
+        const leaderboard = response?.data || response || [];
+
+        const mappedData = leaderboard.map(item => {
+          const total = item.totalScans || 0;
+          const compliant = item.compliantScans || 0;
+          const nonCompliant = item.nonCompliantScans || 0;
+          const rate = total > 0 ? Math.round((compliant / total) * 100) : 0;
+
+          return {
+            id: item.inspector?._id || 'Unknown',
+            name: item.inspector?.fullName || item.inspector?.username || 'Field Inspector',
+            division: 'Central Division',
+            assignedArea: 'National Grid',
+            inspections: total,
+            compliant: compliant,
+            nonCompliant: nonCompliant,
+            complianceRate: rate,
+            status: 'Active',
+            lastInspection: total > 0 ? 'Recently' : 'Never',
+            recentInspections: [],
+            violationSummary: []
+          };
+        });
+        setInspectorsData(mappedData);
+      } catch (err) {
+        console.error('Failed to fetch inspectors', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInspectors();
+  }, []);
 
   const filteredInspectors = useMemo(() => {
-    return INSPECTORS_DATA.filter((inspector) => {
+    return inspectorsData.filter((inspector) => {
       const query = searchTerm.toLowerCase().trim();
 
       const matchesSearch =
@@ -40,23 +78,23 @@ function InspectorsPage() {
 
       return matchesSearch && matchesDivision && matchesStatus;
     });
-  }, [searchTerm, selectedDivision, selectedStatus]);
+  }, [inspectorsData, searchTerm, selectedDivision, selectedStatus]);
 
   const summary = useMemo(() => {
-    const total = INSPECTORS_DATA.length;
-    const active = INSPECTORS_DATA.filter(
+    const total = inspectorsData.length;
+    const active = inspectorsData.filter(
       (item) => item.status === 'Active'
     ).length;
-    const onLeave = INSPECTORS_DATA.filter(
+    const onLeave = inspectorsData.filter(
       (item) => item.status === 'On Leave'
     ).length;
 
-    const totalInspections = INSPECTORS_DATA.reduce(
+    const totalInspections = inspectorsData.reduce(
       (sum, item) => sum + item.inspections,
       0
     );
 
-    const totalViolations = INSPECTORS_DATA.reduce(
+    const totalViolations = inspectorsData.reduce(
       (sum, item) => sum + item.nonCompliant,
       0
     );
@@ -68,103 +106,103 @@ function InspectorsPage() {
       totalInspections,
       totalViolations
     };
-  }, []);
-if (selectedInspector) {
-  const detail = getInspectorDetail(selectedInspector);
+  }, [inspectorsData]);
+  if (selectedInspector) {
+    const detail = inspectorsData.find(i => i.id === selectedInspector) || inspectorsData[0];
 
-  return (
-    <div className="inspectors-page">
-      <button
-        className="back-to-inspectors"
-        onClick={() => setSelectedInspector(null)}
-      >
-        ← Back to Inspectors
-      </button>
+    return (
+      <div className="inspectors-page">
+        <button
+          className="back-to-inspectors"
+          onClick={() => setSelectedInspector(null)}
+        >
+          ← Back to Inspectors
+        </button>
 
-      <div className="inspector-detail-card">
-        <div className="inspector-detail-header">
-          <div className="inspector-detail-avatar">
-            {detail.name
-              .split(' ')
-              .map((word) => word[0])
-              .join('')
-              .slice(0, 2)}
+        <div className="inspector-detail-card">
+          <div className="inspector-detail-header">
+            <div className="inspector-detail-avatar">
+              {detail.name
+                .split(' ')
+                .map((word) => word[0])
+                .join('')
+                .slice(0, 2)}
+            </div>
+
+            <div>
+              <h2>{detail.name}</h2>
+              <p>{detail.id} • {detail.division}</p>
+              <span className={`inspector-status status-${detail.status.toLowerCase().replace(' ', '-')}`}>
+                {detail.status}
+              </span>
+            </div>
           </div>
 
-          <div>
-            <h2>{detail.name}</h2>
-            <p>{detail.id} • {detail.division}</p>
-            <span className={`inspector-status status-${detail.status.toLowerCase().replace(' ', '-')}`}>
-              {detail.status}
-            </span>
-          </div>
-        </div>
-
-        <div className="inspector-detail-location">
-          <strong>Assigned Area</strong>
-          <span>{detail.assignedArea}</span>
-        </div>
-
-        <div className="inspector-detail-stats">
-          <div>
-            <span>Total Inspections</span>
-            <strong>{detail.totalInspections}</strong>
+          <div className="inspector-detail-location">
+            <strong>Assigned Area</strong>
+            <span>{detail.assignedArea}</span>
           </div>
 
-          <div>
-            <span>Compliant</span>
-            <strong>{detail.compliant}</strong>
+          <div className="inspector-detail-stats">
+            <div>
+              <span>Total Inspections</span>
+              <strong>{detail.totalInspections}</strong>
+            </div>
+
+            <div>
+              <span>Compliant</span>
+              <strong>{detail.compliant}</strong>
+            </div>
+
+            <div>
+              <span>Non-Compliant</span>
+              <strong>{detail.nonCompliant}</strong>
+            </div>
+
+            <div>
+              <span>Compliance Rate</span>
+              <strong>{detail.complianceRate}%</strong>
+            </div>
           </div>
 
-          <div>
-            <span>Non-Compliant</span>
-            <strong>{detail.nonCompliant}</strong>
-          </div>
+          <div className="inspector-detail-section">
+            <h3>Recent Inspections</h3>
 
-          <div>
-            <span>Compliance Rate</span>
-            <strong>{detail.complianceRate}%</strong>
-          </div>
-        </div>
+            <div className="recent-inspections-list">
+              {detail.recentInspections.map((inspection) => (
+                <div className="recent-inspection-row" key={inspection.id}>
+                  <div>
+                    <strong>{inspection.product}</strong>
+                    <span>{inspection.id}</span>
+                  </div>
 
-        <div className="inspector-detail-section">
-          <h3>Recent Inspections</h3>
-
-          <div className="recent-inspections-list">
-            {detail.recentInspections.map((inspection) => (
-              <div className="recent-inspection-row" key={inspection.id}>
-                <div>
-                  <strong>{inspection.product}</strong>
-                  <span>{inspection.id}</span>
+                  <div>
+                    <span>{inspection.date}</span>
+                    <span className={`inspection-result ${inspection.status === 'Compliant' ? 'result-compliant' : 'result-non-compliant'}`}>
+                      {inspection.status}
+                    </span>
+                  </div>
                 </div>
-
-                <div>
-                  <span>{inspection.date}</span>
-                  <span className={`inspection-result ${inspection.status === 'Compliant' ? 'result-compliant' : 'result-non-compliant'}`}>
-                    {inspection.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="inspector-detail-section">
-          <h3>Violation Summary</h3>
+          <div className="inspector-detail-section">
+            <h3>Violation Summary</h3>
 
-          <div className="violation-summary-list">
-            {detail.violationSummary.map((item) => (
-              <div className="violation-summary-row" key={item.type}>
-                <span>{item.type}</span>
-                <strong>{item.count}</strong>
-              </div>
-            ))}
+            <div className="violation-summary-list">
+              {detail.violationSummary.map((item) => (
+                <div className="violation-summary-row" key={item.type}>
+                  <span>{item.type}</span>
+                  <strong>{item.count}</strong>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
   return (
     <div className="inspectors-page">
 
@@ -180,7 +218,7 @@ if (selectedInspector) {
         <div className="inspectors-count">
           <Users size={17} />
           <span>
-            {filteredInspectors.length} of {INSPECTORS_DATA.length} inspectors
+            {filteredInspectors.length} of {inspectorsData.length} inspectors
           </span>
         </div>
       </div>
@@ -317,12 +355,12 @@ if (selectedInspector) {
                         </div>
 
                         <div>
-                        <button
-                        className="inspector-name-button"
-                        onClick={() => setSelectedInspector(inspector.id)}
-                        >
-                        {inspector.name}
-                        </button>
+                          <button
+                            className="inspector-name-button"
+                            onClick={() => setSelectedInspector(inspector.id)}
+                          >
+                            {inspector.name}
+                          </button>
                           <span>{inspector.id}</span>
                         </div>
                       </div>

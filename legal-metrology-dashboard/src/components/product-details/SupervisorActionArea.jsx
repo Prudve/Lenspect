@@ -1,26 +1,74 @@
 import React, { useState } from 'react';
-import { ArrowLeft, CheckCircle2, BookmarkPlus, Download, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, BookmarkPlus, Download, Info, FileText } from 'lucide-react';
+import { inspectionService, noticeService } from '../../services/api';
 import './SupervisorActionArea.css';
 
-function SupervisorActionArea({ detail, onBack, onScrollToEvidence }) {
-  const [reviewStatus, setReviewStatus] = useState(null); // 'marked' | 'endorsed' | null
+function SupervisorActionArea({ detail, onBack, onScrollToEvidence, onNoticeGenerated }) {
+  const [reviewStatus, setReviewStatus] = useState(detail.status === 'Compliant' ? 'endorsed' : null);
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleMarkForReview = () => {
-    setReviewStatus('marked');
-    setFeedbackMessage(`Inspection ${detail.inspectionId} has been marked for supervisory compliance hearing (Mock UI state).`);
-    setTimeout(() => setFeedbackMessage(''), 5000);
+  const handleMarkForReview = async () => {
+    try {
+      setLoading(true);
+      await inspectionService.updateInspection(detail.inspectionId, { complianceStatus: 'NEEDS_REVIEW' });
+      setReviewStatus('marked');
+      setFeedbackMessage(`Inspection ${detail.inspectionId} flagged for review.`);
+    } catch (err) {
+      setFeedbackMessage('Failed to flag inspection.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setFeedbackMessage(''), 5000);
+    }
   };
 
-  const handleEndorseRecord = () => {
-    setReviewStatus('endorsed');
-    setFeedbackMessage(`Inspection ${detail.inspectionId} verified and endorsed by Senior Enforcement Officer (Mock UI state).`);
-    setTimeout(() => setFeedbackMessage(''), 5000);
+  const handleEndorseRecord = async () => {
+    try {
+      setLoading(true);
+      await inspectionService.updateInspection(detail.inspectionId, { complianceStatus: 'COMPLIANT' });
+      setReviewStatus('endorsed');
+      setFeedbackMessage(`Inspection ${detail.inspectionId} verified and endorsed.`);
+    } catch (err) {
+      setFeedbackMessage('Failed to endorse inspection.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setFeedbackMessage(''), 5000);
+    }
   };
 
-  const handleMockDownload = () => {
-    setFeedbackMessage(`Generating statutory inspection dossier for ${detail.inspectionId}... (Mock download demo)`);
-    setTimeout(() => setFeedbackMessage(''), 4000);
+  const handleGenerateNotice = async () => {
+    try {
+      setLoading(true);
+      const res = await noticeService.generateNotice(detail.inspectionId, { notes: 'Statutory Notice generated via dashboard.' });
+      const newNotice = res?.data?.notice || res?.notice || { _id: Date.now().toString() };
+      if (onNoticeGenerated) onNoticeGenerated(newNotice);
+      setFeedbackMessage(`Statutory Notice generated for ${detail.inspectionId}.`);
+    } catch (err) {
+      setFeedbackMessage('Failed to generate notice.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setFeedbackMessage(''), 5000);
+    }
+  };
+
+  const handleDownloadNotice = async (noticeId) => {
+    try {
+      setLoading(true);
+      const blob = await noticeService.downloadNotice(noticeId);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Notice-${noticeId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      setFeedbackMessage('Download complete.');
+    } catch (err) {
+      setFeedbackMessage('Failed to download PDF.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setFeedbackMessage(''), 5000);
+    }
   };
 
   return (
@@ -39,21 +87,36 @@ function SupervisorActionArea({ detail, onBack, onScrollToEvidence }) {
 
       <div className="actions-row">
         <div className="actions-left-group">
-          {detail.status === 'Non-Compliant' ? (
-            <button
-              type="button"
-              className={`act-btn act-primary ${reviewStatus === 'marked' ? 'act-active' : ''}`}
-              onClick={handleMarkForReview}
-              title="Flag record for formal compounding / explanation memo"
-            >
-              <BookmarkPlus size={16} />
-              <span>{reviewStatus === 'marked' ? '✓ Flagged for Supervisor Hearing' : 'Mark for Supervisory Review'}</span>
-            </button>
+          {detail.status === 'Non-Compliant' || detail.status === 'Under Review' ? (
+            <>
+              <button
+                type="button"
+                className={`act-btn act-primary ${reviewStatus === 'marked' ? 'act-active' : ''}`}
+                onClick={handleMarkForReview}
+                disabled={loading}
+                title="Flag record for formal compounding / explanation memo"
+              >
+                <BookmarkPlus size={16} />
+                <span>{reviewStatus === 'marked' ? '✓ Flagged for Supervisor Hearing' : 'Mark for Supervisory Review'}</span>
+              </button>
+              
+              <button
+                type="button"
+                className="act-btn act-secondary"
+                onClick={handleGenerateNotice}
+                disabled={loading}
+                title="Generate statutory notice PDF"
+              >
+                <FileText size={15} />
+                <span>Generate Notice</span>
+              </button>
+            </>
           ) : (
             <button
               type="button"
               className={`act-btn act-success ${reviewStatus === 'endorsed' ? 'act-active' : ''}`}
               onClick={handleEndorseRecord}
+              disabled={loading}
               title="Endorse and archive compliant inspection record"
             >
               <CheckCircle2 size={16} />
@@ -70,15 +133,18 @@ function SupervisorActionArea({ detail, onBack, onScrollToEvidence }) {
             <span>View Scanned Evidence</span>
           </button>
 
-          <button
-            type="button"
-            className="act-btn act-secondary"
-            onClick={handleMockDownload}
-            title="Generate exportable verification dossier (demonstration)"
-          >
-            <Download size={15} />
-            <span>Download Statutory Dossier</span>
-          </button>
+          {detail.notices && detail.notices.length > 0 && (
+            <button
+              type="button"
+              className="act-btn act-secondary"
+              onClick={() => handleDownloadNotice(detail.notices[0]._id)}
+              disabled={loading}
+              title="Download Statutory Notice"
+            >
+              <Download size={15} />
+              <span>Download Notice PDF</span>
+            </button>
+          )}
         </div>
 
         <button
@@ -89,13 +155,6 @@ function SupervisorActionArea({ detail, onBack, onScrollToEvidence }) {
           <ArrowLeft size={16} />
           <span>Return to Scanned Products</span>
         </button>
-      </div>
-
-      <div className="actions-disclaimer">
-        <Info size={13} />
-        <span>
-          Statutory Note: Supervisory endorsements and review flags in this interface operate in demonstration state. No external regulatory notifications or enforcement notices are dispatched.
-        </span>
       </div>
     </div>
   );

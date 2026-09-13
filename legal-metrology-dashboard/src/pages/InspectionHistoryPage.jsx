@@ -1,15 +1,11 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Search,
   Eye,
   CalendarDays,
   ClipboardList,
 } from 'lucide-react';
-import {
-  INSPECTION_HISTORY_DATA,
-  HISTORY_STATUSES,
-  HISTORY_CATEGORIES,
-} from '../data/inspectionHistoryMockData';
+import api from '../services/api';
 import './InspectionHistoryPage.css';
 
 function StatusBadge({ status }) {
@@ -29,9 +25,39 @@ function InspectionHistoryPage({ onViewInspection }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [historyData, setHistoryData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const HISTORY_STATUSES = ['All', 'Compliant', 'Non-Compliant', 'Under Review'];
+  const HISTORY_CATEGORIES = ['All', 'Food', 'FMCG', 'Electronics', 'Pharma', 'Other'];
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await api.get('/inspections?limit=100&page=1');
+        const inspections = response?.data?.inspections || response?.inspections || [];
+
+        const mappedHistory = inspections.map(ins => ({
+          id: ins._id,
+          product: ins.extractedData?.commodity_name || 'Unknown Product',
+          category: 'Other',
+          inspector: ins.inspector?.fullName || ins.inspector?.username || 'Unknown',
+          inspectorId: ins.inspector?._id,
+          date: new Date(ins.createdAt).toLocaleString('en-GB'),
+          status: ins.complianceStatus === 'COMPLIANT' ? 'Compliant' : ins.complianceStatus === 'NEEDS_REVIEW' ? 'Under Review' : 'Non-Compliant'
+        }));
+        setHistoryData(mappedHistory);
+      } catch (err) {
+        console.error('Failed to fetch history', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   const filteredHistory = useMemo(() => {
-    return INSPECTION_HISTORY_DATA.filter((inspection) => {
+    return historyData.filter((inspection) => {
       const searchText = search.toLowerCase();
 
       const matchesSearch =
@@ -53,7 +79,7 @@ function InspectionHistoryPage({ onViewInspection }) {
         matchesCategory
       );
     });
-  }, [search, statusFilter, categoryFilter]);
+  }, [historyData, search, statusFilter, categoryFilter]);
 
   return (
     <div className="history-page">
@@ -118,14 +144,14 @@ function InspectionHistoryPage({ onViewInspection }) {
       <div className="history-summary">
         <div className="history-summary-card">
           <span>Total Inspections</span>
-          <strong>{INSPECTION_HISTORY_DATA.length}</strong>
+          <strong>{historyData.length}</strong>
         </div>
 
         <div className="history-summary-card compliant">
           <span>Compliant</span>
           <strong>
             {
-              INSPECTION_HISTORY_DATA.filter(
+              historyData.filter(
                 (item) => item.status === 'Compliant'
               ).length
             }
@@ -136,7 +162,7 @@ function InspectionHistoryPage({ onViewInspection }) {
           <span>Non-Compliant</span>
           <strong>
             {
-              INSPECTION_HISTORY_DATA.filter(
+              historyData.filter(
                 (item) => item.status === 'Non-Compliant'
               ).length
             }
@@ -147,7 +173,7 @@ function InspectionHistoryPage({ onViewInspection }) {
           <span>Under Review</span>
           <strong>
             {
-              INSPECTION_HISTORY_DATA.filter(
+              historyData.filter(
                 (item) => item.status === 'Under Review'
               ).length
             }
