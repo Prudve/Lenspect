@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Create Axios instance with base URL proxying to backend
+// Create Axios instance with base URL proxying to backend (or directly in production)
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   withCredentials: true, // Required to send/receive HTTP-only cookies
 });
 
